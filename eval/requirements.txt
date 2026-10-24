@@ -1,0 +1,7 @@
+huggingface_hub==2.3.0
+pyarrow==26.0.0
+pandas==3.1.0
+faster-whisper==1.2.1
+jiwer==4.0.0
+requests==2.34.2
+anthropic==2.3.0
