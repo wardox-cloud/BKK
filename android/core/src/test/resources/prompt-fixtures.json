@@ -23,7 +23,7 @@
    "kind": "primer",
    "language": "roman",
    "vocabulary": [],
-   "expected": "Haan yaar, main kal office jaunga, phir client ke saath meeting hai. Okay, so let's finalize the report, theek hai?"
+   "expected": "Haan yaar, main kal office jaunga, phir client ke saath meeting hai, theek hai?"
   },
   {
    "kind": "cleanup",
@@ -105,7 +105,7 @@
     "Shmookh",
     "Axiom Talent"
    ],
-   "expected": "Haan yaar, main kal office jaunga, phir client ke saath meeting hai. Okay, so let's finalize the report, theek hai? Names: Shmookh, Axiom Talent."
+   "expected": "Haan yaar, main kal office jaunga, phir client ke saath meeting hai, theek hai? Names: Shmookh, Axiom Talent."
   },
   {
    "kind": "cleanup",
@@ -205,7 +205,7 @@
    "kind": "primer",
    "language": "urdu",
    "vocabulary": [],
-   "expected": "ہاں یار، میں کل office جاؤں گا، پھر client کے ساتھ meeting ہے۔ Okay, so let's finalize the report، ٹھیک ہے؟"
+   "expected": "ہاں یار، میں کل office جاؤں گا، پھر client کے ساتھ meeting ہے، ٹھیک ہے؟"
   },
   {
    "kind": "cleanup",
@@ -287,7 +287,7 @@
     "Shmookh",
     "Axiom Talent"
    ],
-   "expected": "ہاں یار، میں کل office جاؤں گا، پھر client کے ساتھ meeting ہے۔ Okay, so let's finalize the report، ٹھیک ہے؟ Names: Shmookh, Axiom Talent."
+   "expected": "ہاں یار، میں کل office جاؤں گا، پھر client کے ساتھ meeting ہے، ٹھیک ہے؟ Names: Shmookh, Axiom Talent."
   },
   {
    "kind": "cleanup",
@@ -387,7 +387,7 @@
    "kind": "primer",
    "language": "english",
    "vocabulary": [],
-   "expected": "Okay, so let's finalize the report and send it to the client by Monday."
+   "expected": ""
   },
   {
    "kind": "cleanup",
@@ -469,7 +469,7 @@
     "Shmookh",
     "Axiom Talent"
    ],
-   "expected": "Okay, so let's finalize the report and send it to the client by Monday. Names: Shmookh, Axiom Talent."
+   "expected": "Names: Shmookh, Axiom Talent."
   },
   {
    "kind": "cleanup",
@@ -569,7 +569,7 @@
    "kind": "primer",
    "language": "to-english",
    "vocabulary": [],
-   "expected": "Haan yaar, main kal office jaunga, phir client ke saath meeting hai. Okay, so let's finalize the report, theek hai?"
+   "expected": "Haan yaar, main kal office jaunga, phir client ke saath meeting hai, theek hai?"
   },
   {
    "kind": "cleanup",
@@ -651,7 +651,7 @@
     "Shmookh",
     "Axiom Talent"
    ],
-   "expected": "Haan yaar, main kal office jaunga, phir client ke saath meeting hai. Okay, so let's finalize the report, theek hai? Names: Shmookh, Axiom Talent."
+   "expected": "Haan yaar, main kal office jaunga, phir client ke saath meeting hai, theek hai? Names: Shmookh, Axiom Talent."
   },
   {
    "kind": "cleanup",

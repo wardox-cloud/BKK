@@ -18,7 +18,7 @@ class Whisper(private val http: OkHttpClient) {
             .addFormDataPart("model", model)
             .addFormDataPart("response_format", "json")
             // Example text in the target style steers the script and spelling.
-            .addFormDataPart("prompt", primer)
+            .apply { if (primer.isNotEmpty()) addFormDataPart("prompt", primer) }
             .build()
         val request = Request.Builder()
             .url("${baseUrl.trimEnd('/')}/audio/transcriptions")

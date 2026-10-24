@@ -43,7 +43,8 @@ export async function transcribe(blob, { provider, label, apiKey, baseUrl, model
   if (languageCode) form.append('language', languageCode);
   // Example text in the target style steers the script (Roman Urdu or Urdu)
   // and the spelling of names.
-  form.append('prompt', transcriptionPrimer(mode, vocabulary));
+  const primer = transcriptionPrimer(mode, vocabulary);
+  if (primer) form.append('prompt', primer);
 
   const init = { method: 'POST', headers: { Authorization: `Bearer ${apiKey}` }, body: form };
   const unreachable = new Error(`Couldn't reach ${label}. Check your connection, then try again.`);

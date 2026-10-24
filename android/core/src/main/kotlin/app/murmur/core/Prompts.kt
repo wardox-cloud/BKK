@@ -34,7 +34,7 @@ class Prompts(json: String) {
     /** For Whisper-style models, whose prompt is example text, not instructions. */
     fun transcriptionPrimer(language: String, vocabulary: List<String>): String {
         val terms = vocabulary.joinToString(", ")
-        val parts = mutableListOf(root["languages"][language]["primer"].asText())
+        val parts = listOf(root["languages"][language]["primer"].asText()).filter { it.isNotEmpty() }.toMutableList()
         if (terms.isNotEmpty()) parts += fill(root["transcribe"]["primerVocabulary"].asText(), mapOf("terms" to terms))
         return parts.joinToString(" ")
     }

@@ -30,7 +30,7 @@ export function transcriptionInstruction(language, vocabulary) {
 // transcript should follow, not instructions.
 export function transcriptionPrimer(language, vocabulary) {
   const terms = vocabulary.join(', ');
-  const parts = [prompts.languages[language].primer];
+  const parts = [prompts.languages[language].primer].filter(Boolean);
   if (terms) parts.push(fill(prompts.transcribe.primerVocabulary, { terms }));
   return parts.join(' ');
 }

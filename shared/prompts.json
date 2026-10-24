@@ -17,7 +17,8 @@
       "Output only the transcript, with no labels, timestamps, notes or quotation marks. If the recording has no speech, output nothing."
     ],
     "vocabulary": "These names and terms may come up; spell them exactly like this: {terms}.",
-    "primerVocabulary": "Names: {terms}."
+    "primerVocabulary": "Names: {terms}.",
+    "_primer": "Whisper-style models copy whole example sentences into transcripts of short or unclear audio (eval/ measured this), so primers avoid full English sentences."
   },
   "cleanup": {
     "base": [
@@ -43,25 +44,25 @@
     "roman": {
       "label": "English + Urdu, Urdu in Roman letters",
       "transcribe": "Write English words in normal English spelling. Write every Urdu, Punjabi or Hindi word in Roman Urdu: Urdu typed in English letters, the way people text on WhatsApp (mujhe, kya, hai, nahi, theek hai, acha, yaar, kal, zaroor). Never use Urdu or Devanagari script. Never translate: keep every word in the language it was spoken in.",
-      "primer": "Haan yaar, main kal office jaunga, phir client ke saath meeting hai. Okay, so let's finalize the report, theek hai?",
+      "primer": "Haan yaar, main kal office jaunga, phir client ke saath meeting hai, theek hai?",
       "cleanup": "The speaker mixes English and Urdu. Keep that mix exactly as spoken and never translate in either direction. Write English in standard English spelling and every Urdu, Punjabi or Hindi word in Roman Urdu the way people text it (mujhe, kya, hai, nahi, theek hai, acha, yaar, kal, zaroor), spelling each word the same way every time. If the transcript contains Urdu script or Devanagari, transliterate it into Roman Urdu. If an English word was written in Urdu script (میٹنگ), write it as the English word (meeting). Treat Urdu fillers (a filler \"matlab\", \"yaani\", \"woh\", \"haan\") the same as English ones."
     },
     "urdu": {
       "label": "English + Urdu, Urdu in Urdu script",
       "transcribe": "Write Urdu, Punjabi or Hindi words in Urdu script and English words in English letters, exactly as spoken. Never use Devanagari. Never translate: keep every word in the language it was spoken in.",
-      "primer": "ہاں یار، میں کل office جاؤں گا، پھر client کے ساتھ meeting ہے۔ Okay, so let's finalize the report، ٹھیک ہے؟",
+      "primer": "ہاں یار، میں کل office جاؤں گا، پھر client کے ساتھ meeting ہے، ٹھیک ہے؟",
       "cleanup": "The speaker mixes English and Urdu. Keep that mix exactly as spoken and never translate in either direction. Write Urdu, Punjabi or Hindi words in Urdu script and English words in English letters. Convert any Roman Urdu or Devanagari into Urdu script. If an English word was written in Urdu script (میٹنگ), write it in English (meeting). Use Urdu punctuation (، ۔ ؟) in Urdu sentences. Treat Urdu fillers (a filler \"matlab\", \"yaani\", \"woh\", \"haan\") the same as English ones."
     },
     "english": {
       "label": "English only",
       "transcribe": "The speaker mostly speaks English; write it in standard English spelling. If they say an Urdu word or phrase, write it in Roman Urdu (English letters) rather than translating it.",
-      "primer": "Okay, so let's finalize the report and send it to the client by Monday.",
+      "primer": "",
       "cleanup": "Write the text in English. If an Urdu word or phrase appears, keep it in Roman Urdu (English letters) rather than translating it."
     },
     "to-english": {
       "label": "Translate everything to English",
       "transcribe": "Write English words in normal English spelling and every Urdu, Punjabi or Hindi word in Roman Urdu (English letters). Never use Urdu or Devanagari script, and don't translate yet: a later step does that.",
-      "primer": "Haan yaar, main kal office jaunga, phir client ke saath meeting hai. Okay, so let's finalize the report, theek hai?",
+      "primer": "Haan yaar, main kal office jaunga, phir client ke saath meeting hai, theek hai?",
       "cleanup": "The speaker may mix English and Urdu, in any script. Translate everything into natural, fluent English that keeps their meaning and tone. Output English only."
     }
   },

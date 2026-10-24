@@ -71,7 +71,7 @@ def transcription_instruction(language, vocabulary=()):
 
 def transcription_primer(language, vocabulary=()):
     terms = ", ".join(vocabulary)
-    parts = [PROMPTS["languages"][language]["primer"]]
+    parts = [p for p in [PROMPTS["languages"][language]["primer"]] if p]
     if terms:
         parts.append(_fill(PROMPTS["transcribe"]["primerVocabulary"], {"terms": terms}))
     return " ".join(parts)
@@ -203,7 +203,7 @@ def openai_compatible(base_url, key_name, model, language):
     def run(clip):
         reply = requests.post(f"{base_url}/audio/transcriptions", headers={"Authorization": f"Bearer {key}"},
                               files={"file": ("dictation.wav", wav_bytes(clip["pcm"]), "audio/wav")},
-                              data={"model": model, "response_format": "json", "prompt": transcription_primer(language)},
+                              data={"model": model, "response_format": "json"} | ({"prompt": p} if (p := transcription_primer(language)) else {}),
                               timeout=120)
         reply.raise_for_status()
         return reply.json().get("text", "").strip(), {}
