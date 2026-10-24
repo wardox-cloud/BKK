@@ -62,6 +62,10 @@ New builds install over the old one and keep your settings.
 - On some phones Android won't let a bubble use the microphone. Murmur notices the first time and opens a small *Listening…* panel at the bottom instead, and keeps using it from then on. Tap its button (or the bubble) when you're done.
 - If something fails, a message says why.
 
+### Transcribe a recording
+
+Share any recording to Murmur, such as a Voice Recorder file or a WhatsApp voice note: tap **Share** and choose **Transcribe with Murmur**. It writes it down with your usual settings, shows it, and copies it. It handles the first 7 minutes of a recording.
+
 ### The keyboard (optional)
 
 If you'd rather not turn on the floating mic, Murmur also works as a keyboard. Turn it on from the bottom of the Murmur app, then switch to it with the keyboard button at the bottom of your screen or the globe key. Tap the mic (or hold it while you talk). Tapping a style right after a dictation rewrites it in place. **Undo** removes the last dictation.
@@ -129,6 +133,8 @@ Results so far, with Whisper only because no API keys are set yet (20 real clips
 
 Whisper is fine for accented English; its slips ("newlywed **chai** bride" for "shy bride") are the kind the cleanup step fixes. For mixed Urdu and English it isn't good enough, which is why Gemini is the default. An earlier hint with an English example sentence sometimes got copied into transcripts (2 of 20 clips). The current hint avoids full English sentences, and that dropped to 0 of 20.
 
+To compare Murmur with your phone's own transcription (Samsung Voice Recorder, Gboard, Live Transcribe) on your own voice, follow [eval/phone_benchmark.md](eval/phone_benchmark.md): read a short script, run the same recording through each, and score the results with `eval/phone_score.py`.
+
 `eval/speech_eval.py` checks transcription on the manually corrected [UrduSpeech](https://huggingface.co/datasets/ASLP-lab/UrduSpeech) benchmark: real Pakistani speakers from podcasts, interviews, vlogs and shows, in two sets (Pakistani-accented English, and mixed Urdu-English). It always runs Whisper locally (the open model Groq serves). To include Gemini, OpenAI, Groq and the Claude cleanup, add `GEMINI_API_KEY`, `OPENAI_API_KEY`, `GROQ_API_KEY` and `ANTHROPIC_API_KEY` as repository secrets (**Settings → Secrets and variables → Actions**). Then run **Actions → Speech eval → Run workflow**. The report appears on the run's summary page. Only the keys you add are used. Each run costs a few cents.
 
 ## Develop
@@ -142,9 +148,9 @@ cd android && ./gradlew :core:test :app:assembleDebug   # keyboard (needs the An
 |---|---|
 | `shared/prompts.json` | Every prompt: transcription instructions, cleanup rules, languages, styles. Edit wording here. |
 | `src/` | Web app. `prompts.js` builds prompts, `transcribe.js` and `gemini.js` do speech to text, `polish.js` does cleanup. |
-| `android/core/` | The keyboard's logic in plain Kotlin: prompts, WAV, Gemini/OpenAI/Groq, Claude. Its tests check its prompts match the web app's exactly. |
-| `android/app/` | The floating mic (`BubbleService.kt`, with `MicPanelActivity.kt` as its fallback), the keyboard (`MurmurKeyboard.kt`) and the setup screen (`SetupActivity.kt`). |
-| `eval/` | The speech test. |
+| `android/core/` | The keyboard's logic in plain Kotlin: prompts, audio (WAV, resampling), Gemini/OpenAI/Groq, Claude. Its tests check its prompts match the web app's exactly. |
+| `android/app/` | The floating mic (`BubbleService.kt`, with `MicPanelActivity.kt` as its fallback), the keyboard (`MurmurKeyboard.kt`), the setup screen (`SetupActivity.kt`) and the screen for shared recordings (`TranscribeActivity.kt`). |
+| `eval/` | The speech test, and the phone benchmark (`phone_benchmark.md`, `phone_score.py`). |
 | `.github/workflows/` | `android.yml` builds and publishes the APK on every change; `speech-eval.yml` runs the speech test. |
 
 **Signing key:** `android/keystore/murmur.jks` signs every build, so each new APK installs over the old one. It's in this public repository, which is fine for a personal app. To use a private key instead, add it as repository secrets and set `MURMUR_KEYSTORE`, `MURMUR_KEYSTORE_PASSWORD`, `MURMUR_KEY_ALIAS` and `MURMUR_KEY_PASSWORD` in the workflow. Switching keys means uninstalling once.
