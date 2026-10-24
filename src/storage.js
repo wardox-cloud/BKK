@@ -16,7 +16,7 @@ export const DEFAULT_SETTINGS = {
   customBaseUrl: '',
   languageMode: 'roman',
   language: '',
-  cleanupEngine: 'claude',
+  cleanupEngine: 'gemini',
   anthropicKey: '',
   claudeModel: 'claude-opus-5-5',
   style: 'clean',

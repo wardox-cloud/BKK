@@ -1,22 +1,25 @@
 # Murmur
 
-A personal Wispr Flow-style voice keyboard. Tap the mic and talk the way you normally do: English with a Pakistani accent, Urdu, or both in the same sentence. Murmur writes it down cleanly (no "um"s or false starts, real punctuation, your "no wait, I mean..." corrections applied) and types it into whatever app you're using.
+A personal, free, Wispr Flow-style voice tool for your phone. Tap the floating mic in any app and talk the way you normally do: English, Urdu, or both in the same sentence. Murmur writes it down cleanly (no "um"s or false starts, real punctuation, your "no wait, I mean..." corrections applied) and types it into the box you're in.
 
-It comes in two forms:
+It costs nothing to run: one free Gemini key from Google does the listening and the cleanup. There's no Murmur server, and your key stays on your phone.
 
-- **Android keyboard** (`android/`): switch to it from any app, talk, and the text is typed in for you.
+It comes in three forms:
+
+- **Floating mic** (Android, `android/`): a small mic button over every app while you type. Tap, talk, tap: the text goes straight into the text box.
+- **Murmur keyboard** (Android): the same thing as a keyboard you switch to, for people who'd rather not turn on the floating mic.
 - **Web app** (`src/`): works on iPhone and Android from the home screen. It copies the text, and you paste it.
 
-Both use the same prompts (`shared/prompts.json`) and send your audio straight to the services you choose. There's no Murmur server, and your keys stay on your phone.
+All three use the same prompts (`shared/prompts.json`).
 
 ## How it works
 
 ```
- mic ──► speech to text ──────────► cleanup ──────────────► typed in (keyboard)
-         Gemini (best for            Claude, or Gemini        or copied (web app)
-         Urdu + English),            removes filler, fixes
-         OpenAI or Groq              accent mis-hearings,
-                                     writes Urdu your way
+ mic ──► Gemini (free) listens and cleans up in one step ──► typed into the text box
+         removes filler, applies corrections,
+         writes Urdu your way
+
+         Optional: OpenAI or Groq for speech to text, Claude for cleanup (paid APIs)
 ```
 
 ### How you speak
@@ -36,54 +39,55 @@ Why Gemini is the default for transcription: in the [UrduSpeech study (2026)](ht
 
 ### Styles
 
-*Clean* (your words, tidied up), *Message* (casual text), *Email* (paragraphs), *Notes* (bullet points), *Raw* (no cleanup). On the keyboard, tapping a style right after a dictation rewrites that dictation in place.
+*Clean* (your words, tidied up), *Message* (casual text), *Email* (paragraphs), *Notes* (bullet points), *Raw* (no cleanup). Pick one in the Murmur app (or on the keyboard, where tapping a style right after a dictation rewrites that dictation in place).
 
-## Android keyboard
+## Android: floating mic and keyboard
 
 ### Install
 
 1. On your phone, open **[the latest release](https://github.com/wardox-cloud/BKK/releases/latest)** and tap **murmur-keyboard.apk**.
 2. Android asks whether your browser may install apps. Allow it for this one install. The app isn't in the Play Store, so Android calls it an "unknown app".
-3. Open **Murmur** from your app drawer and follow the three steps on screen:
-   1. **Turn on the Murmur keyboard** (Android shows a standard warning that keyboards can see what you type; Murmur only sends audio to the services you choose).
-   2. **Allow the microphone.**
-   3. **Add your keys** (see [Keys](#keys)) and tap **Save**.
-4. Try it in the **Try it here** box: tap it, switch to Murmur, and talk.
+3. Open **Murmur** from your app drawer and follow the steps on screen:
+   1. **Allow the microphone.**
+   2. **Add your free Gemini key** (the button opens [aistudio.google.com/apikey](https://aistudio.google.com/apikey)) and tap **Save**.
+   3. **Turn on the floating mic:** tap **Open Accessibility**, choose **Murmur mic bubble** and turn it on. If Android says it's a *restricted setting* (Android 13 and newer do this for apps not installed from the Play Store), tap **App info** in Murmur, then **⋮** in the top corner, then **Allow restricted settings**, and try again.
+4. Try it in the **Try it here** box.
 
 New builds install over the old one and keep your settings.
 
 ### Use it
 
-- In any app, switch to Murmur with the keyboard button at the bottom of your screen or the globe key on your usual keyboard.
-- **Tap** the mic, talk, tap again. Or **hold** it while you talk and let go when you're done.
-- The text appears where your cursor is, with a space added if needed.
-- The keyboard button switches back to your usual keyboard (long-press it to pick a keyboard). In settings you can make Murmur switch back automatically after each dictation.
-- **Undo** removes the last dictation. Backspace and enter work as usual.
-- If something fails, the message tells you why. Tap it to retry without talking again.
+- When you're typing in any app, the mic bubble appears at the edge of the screen. Drag it anywhere; it remembers where you put it. (In settings you can keep it on screen all the time.)
+- **Tap** the bubble, talk, **tap** again. A moment later your words are typed at the cursor, with a space added if needed. If no text box is selected, they're copied so you can paste them.
+- On some phones Android won't let a bubble use the microphone. Murmur notices the first time and opens a small *Listening…* panel at the bottom instead, and keeps using it from then on. Tap its button (or the bubble) when you're done.
+- If something fails, a message says why.
+
+### The keyboard (optional)
+
+If you'd rather not turn on the floating mic, Murmur also works as a keyboard. Turn it on from the bottom of the Murmur app, then switch to it with the keyboard button at the bottom of your screen or the globe key. Tap the mic (or hold it while you talk). Tapping a style right after a dictation rewrites it in place. **Undo** removes the last dictation.
+
+### Why it needs Accessibility
+
+Android only lets an app draw a button over other apps and type into their text boxes through Accessibility. Murmur uses it only to see which text box is selected (to show the bubble and put your words there). It doesn't read the screen otherwise, and it doesn't send anything except your recording, which goes to the speech service you chose.
 
 ## Keys
 
-| What | Where to get it | Notes |
-|---|---|---|
-| **Gemini** (recommended for transcription) | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | Default model `gemini-3.6-flash`; change it in settings. Gemini has a free tier, but on the free tier Google may use what you send to improve its products. Turn on billing if that matters to you. |
-| **Anthropic** (cleanup) | [console.anthropic.com](https://console.anthropic.com/settings/keys) | Claude Opus 5.5 by default; Sonnet 5.5 and Haiku 5.5 are cheaper (see [costs](#what-it-costs)). Optional: without it you get the raw transcript, or pick Gemini for cleanup. |
-| OpenAI (optional) | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) | `gpt-4o-transcribe`. Fine for English, weaker on mixed Urdu-English. |
-| Groq (optional) | [console.groq.com/keys](https://console.groq.com/keys) | `whisper-large-v3-turbo`. Fast and very cheap; weakest on mixed speech. |
+**You need one key, and it's free:** a Gemini key from [aistudio.google.com/apikey](https://aistudio.google.com/apikey). Any Google account works; you don't need a paid plan. Murmur uses Gemini for both steps, listening and cleanup, in a single request.
 
-**API usage is billed separately from a Claude subscription.** The Anthropic key draws on prepaid API credits from console.anthropic.com. It doesn't use your Claude Pro or Max chat limits, and those don't cover it. Set a monthly spending limit in each console so a lost phone can't run up a bill.
+| Optional extras | Where | Notes |
+|---|---|---|
+| Claude for cleanup | [console.anthropic.com](https://console.anthropic.com/settings/keys) | Paid per use. A Claude Pro or Max subscription doesn't cover it: subscriptions are for Anthropic's own apps, and an app you build uses the separately billed API. |
+| OpenAI for speech to text | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) | Paid. Fine for English, weaker on mixed Urdu-English. |
+| Groq for speech to text | [console.groq.com/keys](https://console.groq.com/keys) | Free tier available. Fast, but weakest on mixed speech. |
 
 ## What it costs
 
-Estimates for a typical 30-second dictation (about 75 words). Cleanup sends about 850 tokens to Claude (mostly the fixed instructions) and gets about 250 back. Gemini prices are Gemini 3 Flash's published rates; check current pricing.
+**Nothing, with the default setup.** Gemini's free tier covers personal dictation, with two catches:
 
-| Setup | Per dictation | Per month at 30 dictations a day |
-|---|---|---|
-| Gemini + Claude Opus 5.5 (default) | ~1¢ | ~$9 |
-| Gemini + Claude Sonnet 5.5 | ~0.6¢ | ~$5 |
-| Gemini + Claude Haiku 5.5 | ~0.2¢ | ~$2 |
-| Gemini alone, one step | ~0.2¢ | ~$2 |
+- **Daily limits.** Google caps free requests per day, and the numbers change (reports range from about 20 a day to 1,500 for the newest Flash models, and about 500 for Flash-Lite). When the Flash model runs out, Murmur switches to Flash-Lite on its own. If both run out, it says so; the limits reset daily.
+- **Privacy.** On the free tier, Google may use what you send to improve its products. If you'd rather it didn't, add billing to your Google AI Studio project; then you pay per use, roughly 0.2¢ per 30-second dictation (about $1.50 a month at 30 dictations a day).
 
-Gemini's share is about 0.2¢ of each figure. Switch models any time in settings.
+Claude cleanup, if you add it, is extra: about $0.20 a month with Claude Haiku 5.5, or about $7.50 with Claude Opus 5.5, at 30 dictations a day.
 
 ## Web app
 
@@ -139,7 +143,7 @@ cd android && ./gradlew :core:test :app:assembleDebug   # keyboard (needs the An
 | `shared/prompts.json` | Every prompt: transcription instructions, cleanup rules, languages, styles. Edit wording here. |
 | `src/` | Web app. `prompts.js` builds prompts, `transcribe.js` and `gemini.js` do speech to text, `polish.js` does cleanup. |
 | `android/core/` | The keyboard's logic in plain Kotlin: prompts, WAV, Gemini/OpenAI/Groq, Claude. Its tests check its prompts match the web app's exactly. |
-| `android/app/` | The Android keyboard (`MurmurKeyboard.kt`) and setup screen (`SetupActivity.kt`). |
+| `android/app/` | The floating mic (`BubbleService.kt`, with `MicPanelActivity.kt` as its fallback), the keyboard (`MurmurKeyboard.kt`) and the setup screen (`SetupActivity.kt`). |
 | `eval/` | The speech test. |
 | `.github/workflows/` | `android.yml` builds and publishes the APK on every change; `speech-eval.yml` runs the speech test. |
 
@@ -147,7 +151,7 @@ cd android && ./gradlew :core:test :app:assembleDebug   # keyboard (needs the An
 
 ## Ideas for later
 
-- Make the mic button on your usual keyboard open Murmur, by registering as Android's voice-input service.
+- Fully offline mode: run Whisper on the phone itself for English-only dictation without internet (mixed Urdu-English needs Gemini; see the speech test).
 - Voice commands on selected text: "make this shorter", "translate to English".
 - Per-app styles, such as Email in Gmail and Message in WhatsApp.
-- iPhone keyboard: needs a Mac and Xcode. iOS keyboards can't use the microphone, so it hands off to the app like Wispr Flow does.
+- iPhone: needs a Mac and Xcode, and iOS keyboards can't use the microphone, so it would hand off to the app like Wispr Flow does.

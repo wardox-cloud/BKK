@@ -12,12 +12,12 @@ enum class SttProvider(val id: String, val label: String, val defaultModel: Stri
 }
 
 enum class CleanupEngine(val id: String, val label: String) {
-    CLAUDE("claude", "Claude (best editing)"),
-    GEMINI("gemini", "Gemini (uses your Gemini key; one step when Gemini transcribes, fastest and cheapest)"),
+    GEMINI("gemini", "Gemini (free with your Gemini key)"),
+    CLAUDE("claude", "Claude (needs paid Anthropic API credits)"),
     ;
 
     companion object {
-        fun of(id: String?) = entries.firstOrNull { it.id == id } ?: CLAUDE
+        fun of(id: String?) = entries.firstOrNull { it.id == id } ?: GEMINI
     }
 }
 

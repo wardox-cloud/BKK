@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.os.Build
 import app.murmur.core.Wav
 import java.io.ByteArrayOutputStream
 import kotlin.math.sqrt
@@ -16,6 +17,10 @@ class PcmRecorder {
 
     @Volatile
     private var running = false
+
+    /** Loudest sample so far; real microphones never give a perfectly flat zero. */
+    @Volatile
+    private var peak = 0
 
     /** Callers check the RECORD_AUDIO permission first. [onLevel] runs on the recording thread. */
     @SuppressLint("MissingPermission")
@@ -34,6 +39,7 @@ class PcmRecorder {
             error("the microphone is busy or unavailable")
         }
         synchronized(pcm) { pcm.reset() }
+        peak = 0
         running = true
         audio.startRecording()
         record = audio
@@ -43,6 +49,7 @@ class PcmRecorder {
                 val read = audio.read(buffer, 0, buffer.size)
                 if (read > 0) {
                     synchronized(pcm) { pcm.write(buffer, 0, read) }
+                    peak = maxOf(peak, peak(buffer, read))
                     onLevel(level(buffer, read))
                 }
             }
@@ -60,6 +67,27 @@ class PcmRecorder {
         }
         record = null
         return synchronized(pcm) { pcm.toByteArray().also { pcm.reset() } }
+    }
+
+    /**
+     * True when Android is feeding silence because this app isn't allowed the
+     * microphone right now (it does that quietly instead of failing).
+     */
+    fun isSilenced(): Boolean {
+        val audio = record ?: return false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && audio.activeRecordingConfiguration?.isClientSilenced == true) {
+            return true
+        }
+        return synchronized(pcm) { pcm.size() } >= Wav.SAMPLE_RATE && peak == 0 // half a second of exact zeros
+    }
+
+    private fun peak(buffer: ByteArray, length: Int): Int {
+        var loudest = 0
+        for (i in 0 until length / 2) {
+            val sample = (buffer[2 * i].toInt() and 0xFF) or (buffer[2 * i + 1].toInt() shl 8)
+            loudest = maxOf(loudest, kotlin.math.abs(sample))
+        }
+        return loudest
     }
 
     private fun level(buffer: ByteArray, length: Int): Float {

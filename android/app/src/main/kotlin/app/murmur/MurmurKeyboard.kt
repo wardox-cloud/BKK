@@ -24,6 +24,7 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import app.murmur.core.Dictation
 import app.murmur.core.DictationException
+import app.murmur.core.Insertion
 import app.murmur.core.Prompts
 import app.murmur.core.Wav
 import java.util.concurrent.Executors
@@ -334,9 +335,7 @@ class MurmurKeyboard : InputMethodService() {
 
     private fun insert(text: String) {
         val input = currentInputConnection ?: return
-        val before = input.getTextBeforeCursor(1, 0)
-        val needsSpace = !before.isNullOrEmpty() && !before.last().isWhitespace() && text.firstOrNull()?.isWhitespace() == false
-        val output = if (needsSpace) " $text" else text
+        val output = Insertion.spaced(text, input.getTextBeforeCursor(1, 0)?.lastOrNull())
         input.commitText(output, 1)
         lastInserted = output
     }

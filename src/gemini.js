@@ -4,7 +4,10 @@ import { toBase64, toWav } from './wav.js';
 
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 
-export async function geminiGenerate({ apiKey, model, system, parts }) {
+// Rolling alias for the newest Flash-Lite, which has the most generous free tier.
+const FREE_FALLBACK_MODEL = 'gemini-flash-lite-latest';
+
+async function call({ apiKey, model, system, parts }) {
   let response;
   try {
     response = await fetch(`${ENDPOINT}/${encodeURIComponent(model)}:generateContent`, {
@@ -22,14 +25,24 @@ export async function geminiGenerate({ apiKey, model, system, parts }) {
   } catch {
     throw new Error("Couldn't reach Gemini. Check your connection, then try again.");
   }
+  return { response, body: await response.json().catch(() => ({})) };
+}
 
-  const body = await response.json().catch(() => ({}));
+export async function geminiGenerate(request) {
+  let { response, body } = await call(request);
+  // The free tier caps daily requests per model; Flash-Lite's cap is much higher.
+  if (response.status === 429 && request.model !== FREE_FALLBACK_MODEL) {
+    ({ response, body } = await call({ ...request, model: FREE_FALLBACK_MODEL }));
+  }
   if (!response.ok) {
     const keyRejected =
       response.status === 401 ||
       response.status === 403 ||
       body.error?.details?.some((detail) => detail.reason === 'API_KEY_INVALID');
     if (keyRejected) throw new Error('Gemini rejected the API key. Check it in Settings.');
+    if (response.status === 429) {
+      throw new Error("You've used Gemini's free requests for now. Try again in a little while.");
+    }
     throw new Error(`Gemini couldn't do that: ${body.error?.message ?? response.status}`);
   }
   return (body.candidates?.[0]?.content?.parts ?? [])

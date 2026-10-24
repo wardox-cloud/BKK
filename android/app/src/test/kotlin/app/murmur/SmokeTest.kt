@@ -17,6 +17,7 @@ import app.murmur.core.SttProvider
 import app.murmur.core.Wav
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import java.time.Duration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -53,7 +54,7 @@ class SmokeTest {
         assertEquals("sk-openai", settings.sttKey)
         assertEquals("AIza-test", settings.geminiKey)
         assertEquals("sk-ant-test", settings.anthropicKey)
-        assertEquals(CleanupEngine.CLAUDE, settings.cleanup)
+        assertEquals(CleanupEngine.GEMINI, settings.cleanup) // free by default
         assertEquals("claude-opus-5-5", settings.claudeModel)
         assertEquals("roman", settings.language)
         assertEquals(listOf("Shmookh", "Axiom Talent"), settings.vocabulary)
@@ -134,7 +135,7 @@ class SmokeTest {
         val deadline = System.currentTimeMillis() + 10_000
         while (!done(status.text.toString()) && System.currentTimeMillis() < deadline) {
             Thread.sleep(50)
-            shadowOf(Looper.getMainLooper()).idle()
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100))
         }
         assertTrue("status was: ${status.text}", done(status.text.toString()))
     }

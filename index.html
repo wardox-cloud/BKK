@@ -122,12 +122,12 @@
           <legend>Cleanup</legend>
           <label>Cleaned up by
             <select id="cleanup-engine">
-              <option value="claude">Claude (best editing)</option>
-              <option value="gemini">Gemini (uses your Gemini key; with Gemini transcribing it's one step, fastest and cheapest)</option>
+              <option value="gemini">Gemini (free with your Gemini key)</option>
+              <option value="claude">Claude (needs paid Anthropic API credits)</option>
             </select>
           </label>
           <label>Anthropic API key
-            <input id="anthropic-key" type="password" placeholder="sk-ant-... (leave empty for raw text)" autocomplete="off" autocapitalize="off" spellcheck="false" />
+            <input id="anthropic-key" type="password" placeholder="sk-ant-... (only for Claude cleanup)" autocomplete="off" autocapitalize="off" spellcheck="false" />
           </label>
           <label>Model <select id="claude-model"></select></label>
         </fieldset>

@@ -18,6 +18,18 @@ class Prefs(context: Context) {
     val vocabulary get() = prefs.getString("vocabulary", "").orEmpty()
     val switchBack get() = prefs.getBoolean("switch_back", false)
 
+    /** Show the mic bubble even when no text box is focused. */
+    val bubbleAlways get() = prefs.getBoolean("bubble_always", false)
+
+    /** Set once Android has shown it silences the bubble's mic, so the mic panel is used straight away. */
+    var micPanel: Boolean
+        get() = prefs.getBoolean("mic_panel", false)
+        set(value) = edit { putBoolean("mic_panel", value) }
+
+    var bubblePosition: Pair<Int, Int>
+        get() = prefs.getInt("bubble_x", -1) to prefs.getInt("bubble_y", -1)
+        set(value) = edit { putInt("bubble_x", value.first).putInt("bubble_y", value.second) }
+
     var style: String
         get() = prefs.getString("style", null) ?: "clean"
         set(value) = edit { putString("style", value) }

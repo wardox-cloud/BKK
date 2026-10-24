@@ -11,6 +11,17 @@
         <item name="android:textColorSecondary">@color/muted</item>
     </style>
 
+    <!-- The mic panel: a card at the bottom over whatever app you're in. -->
+    <style name="Theme.Murmur.Panel" parent="Theme.Murmur">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@color/surface</item>
+        <item name="android:windowAnimationStyle">@android:style/Animation.InputMethod</item>
+    </style>
+
     <style name="Murmur.Heading" parent="">
         <item name="android:textSize">16sp</item>
         <item name="android:textStyle">bold</item>

@@ -27,19 +27,6 @@
             android:textSize="15sp" />
 
         <TextView
-            android:id="@+id/step_enable"
-            style="@style/Murmur.Heading"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/step_enable" />
-
-        <Button
-            android:id="@+id/enable"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/step_enable_button" />
-
-        <TextView
             android:id="@+id/step_mic"
             style="@style/Murmur.Heading"
             android:layout_width="match_parent"
@@ -53,16 +40,50 @@
             android:text="@string/step_mic_button" />
 
         <TextView
+            android:id="@+id/step_key"
             style="@style/Murmur.Heading"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/step_switch" />
+            android:text="@string/step_key" />
 
         <Button
-            android:id="@+id/choose_keyboard"
+            android:id="@+id/get_key"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/step_switch_button" />
+            android:text="@string/step_key_button" />
+
+        <TextView
+            android:id="@+id/step_bubble"
+            style="@style/Murmur.Heading"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/step_bubble" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/step_bubble_help"
+            android:textColor="@color/muted"
+            android:textSize="14sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/open_accessibility"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/step_bubble_button" />
+
+            <Button
+                android:id="@+id/app_info"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="@string/step_app_info" />
+        </LinearLayout>
 
         <TextView
             style="@style/Murmur.Heading"
@@ -207,6 +228,13 @@
             android:minLines="3" />
 
         <CheckBox
+            android:id="@+id/bubble_always"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/bubble_always" />
+
+        <CheckBox
             android:id="@+id/switch_back"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -221,6 +249,44 @@
             android:backgroundTint="@color/accent"
             android:text="@string/save"
             android:textColor="@color/on_accent" />
+
+        <TextView
+            style="@style/Murmur.Heading"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/keyboard_heading" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/keyboard_help"
+            android:textColor="@color/muted"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/step_enable"
+            style="@style/Murmur.Label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/step_enable" />
+
+        <Button
+            android:id="@+id/enable"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/step_enable_button" />
+
+        <TextView
+            style="@style/Murmur.Label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/step_switch" />
+
+        <Button
+            android:id="@+id/choose_keyboard"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/step_switch_button" />
 
         <TextView
             android:layout_width="match_parent"

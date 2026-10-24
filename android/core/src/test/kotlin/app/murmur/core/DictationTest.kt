@@ -24,6 +24,7 @@ class DictationTest {
     // What the fake services answer; tests change these.
     var geminiTranscript = "yaar mujhe kal um the report bhejni hai na, so please remind me"
     var geminiStatus = 200
+    var geminiOutOfQuota = setOf<String>()
     var claudeStatus = 200
     var claudeStopReason = "end_turn"
 
@@ -47,7 +48,7 @@ class DictationTest {
                 requests += request to body
                 val path = request.path.orEmpty()
                 return when {
-                    path.contains(":generateContent") -> gemini(body)
+                    path.contains(":generateContent") -> gemini(body, path)
                     path.contains("/audio/transcriptions") ->
                         MockResponse().setBody("""{"text":"yaar mujhe kal report bhejni hai, so please remind me"}""")
                     path.startsWith("/v1/messages") -> claude()
@@ -61,7 +62,10 @@ class DictationTest {
     @AfterTest
     fun stop() = server.shutdown()
 
-    private fun gemini(body: String): MockResponse {
+    private fun gemini(body: String, path: String): MockResponse {
+        if (geminiOutOfQuota.any { path.contains("/$it:") }) {
+            return MockResponse().setResponseCode(429).setBody("""{"error":{"code":429,"status":"RESOURCE_EXHAUSTED","message":"Quota exceeded"}}""")
+        }
         if (geminiStatus != 200) {
             return MockResponse().setResponseCode(geminiStatus).setBody(
                 """{"error":{"code":400,"message":"API key not valid.","status":"INVALID_ARGUMENT","details":[{"reason":"API_KEY_INVALID"}]}}""",
@@ -195,4 +199,31 @@ class DictationTest {
         assertEquals(geminiTranscript, dictation().run(wav, settings.copy(anthropicKey = "")).text)
         assertEquals(2, requests.size) // two transcriptions, no cleanup calls
     }
+
+    @Test
+    fun `when the free quota runs out it falls back to flash-lite`() {
+        geminiOutOfQuota = setOf("gemini-3.6-flash")
+        val result = dictation().run(wav, settings.copy(cleanup = CleanupEngine.GEMINI))
+
+        assertEquals(
+            listOf("/gemini/gemini-3.6-flash:generateContent", "/gemini/gemini-flash-lite-latest:generateContent"),
+            requests.map { it.first.path },
+        )
+        assertFalse(bodyOf(1).has("generationConfig")) // the alias isn't a gemini-3 id
+        assertEquals("Yaar, mujhe kal report bhejni hai, so please remind me.", result.text)
+    }
+
+    @Test
+    fun `when every free quota is used up it says so`() {
+        geminiOutOfQuota = setOf("gemini-3.6-flash", "gemini-flash-lite-latest")
+        val error = assertFailsWith<DictationException> { dictation().run(wav, settings.copy(cleanup = CleanupEngine.GEMINI)) }
+        assertEquals("You've used Gemini's free requests for now. Try again in a little while.", error.message)
+    }
+
+    @Test
+    fun `gemini is the free default for cleanup`() {
+        assertEquals(CleanupEngine.GEMINI, CleanupEngine.of(null))
+        assertEquals(CleanupEngine.GEMINI, CleanupEngine.of("unknown"))
+    }
 }
+

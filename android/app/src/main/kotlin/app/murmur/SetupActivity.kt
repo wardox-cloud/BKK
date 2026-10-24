@@ -2,7 +2,9 @@ package app.murmur
 
 import android.Manifest
 import android.app.Activity
+import android.content.ComponentName
 import android.content.Intent
+import android.net.Uri
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.provider.Settings
@@ -38,6 +40,9 @@ class SetupActivity : Activity() {
 
     private lateinit var stepEnable: TextView
     private lateinit var stepMic: TextView
+    private lateinit var stepKey: TextView
+    private lateinit var stepBubble: TextView
+    private lateinit var bubbleAlways: CheckBox
     private lateinit var language: Spinner
     private lateinit var provider: Spinner
     private lateinit var sttKey: EditText
@@ -57,6 +62,9 @@ class SetupActivity : Activity() {
 
         stepEnable = findViewById(R.id.step_enable)
         stepMic = findViewById(R.id.step_mic)
+        stepKey = findViewById(R.id.step_key)
+        stepBubble = findViewById(R.id.step_bubble)
+        bubbleAlways = findViewById(R.id.bubble_always)
         language = findViewById(R.id.language)
         provider = findViewById(R.id.provider)
         sttKey = findViewById(R.id.stt_key)
@@ -85,6 +93,7 @@ class SetupActivity : Activity() {
         anthropicKey.setText(prefs.anthropicKey)
         vocabulary.setText(prefs.vocabulary)
         switchBack.isChecked = prefs.switchBack
+        bubbleAlways.isChecked = prefs.bubbleAlways
         showProvider()
 
         provider.onItemSelectedListener = onSelected {
@@ -99,6 +108,15 @@ class SetupActivity : Activity() {
         }
         findViewById<Button>(R.id.allow_mic).setOnClickListener {
             requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), MIC_REQUEST)
+        }
+        findViewById<Button>(R.id.get_key).setOnClickListener {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/apikey")))
+        }
+        findViewById<Button>(R.id.open_accessibility).setOnClickListener {
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        }
+        findViewById<Button>(R.id.app_info).setOnClickListener {
+            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null)))
         }
         findViewById<Button>(R.id.choose_keyboard).setOnClickListener {
             (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker()
@@ -120,8 +138,13 @@ class SetupActivity : Activity() {
         val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
         val enabled = imm.enabledInputMethodList.any { it.packageName == packageName }
         val micAllowed = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        val bubbleOn = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES).orEmpty()
+            .split(':')
+            .any { ComponentName.unflattenFromString(it) == ComponentName(this, BubbleService::class.java) }
         stepEnable.text = getString(R.string.step_enable) + if (enabled) "  ✓" else ""
         stepMic.text = getString(R.string.step_mic) + if (micAllowed) "  ✓" else ""
+        stepKey.text = getString(R.string.step_key) + if (prefs.key(prefs.provider).isNotBlank()) "  ✓" else ""
+        stepBubble.text = getString(R.string.step_bubble) + if (bubbleOn) "  ✓" else ""
     }
 
     private fun showProvider() {
@@ -164,8 +187,10 @@ class SetupActivity : Activity() {
             putString("claude_model", claudeModels[claudeModel.selectedItemPosition])
             putString("vocabulary", vocabulary.text.toString())
             putBoolean("switch_back", switchBack.isChecked)
+            putBoolean("bubble_always", bubbleAlways.isChecked)
         }
         Toast.makeText(this, R.string.saved, Toast.LENGTH_SHORT).show()
+        showSteps()
     }
 
     private fun visible(show: Boolean, vararg ids: Int) {

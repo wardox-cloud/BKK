@@ -533,6 +533,6 @@ setState('idle');
 if (history[0]) showEntry(history[0]);
 if (!sttReady()) {
   openSettings(
-    'Welcome! Add a speech-to-text key to begin (Gemini handles mixed English and Urdu best). An Anthropic key is optional but turns rambling speech into clean text.',
+    'Welcome! Add a free Gemini key to begin (aistudio.google.com/apikey). That is all Murmur needs.',
   );
 }
