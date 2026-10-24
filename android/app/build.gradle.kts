@@ -60,6 +60,10 @@ android {
     lint {
         checkReleaseBuilds = false
     }
+
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
 }
 
 kotlin {
@@ -68,4 +72,7 @@ kotlin {
 
 dependencies {
     implementation(project(":core"))
+
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.17")
 }

@@ -32,7 +32,7 @@ jobs:
           java-version: "17"
       - uses: gradle/actions/setup-gradle@v4
       - name: Test and build
-        run: ./gradlew --no-daemon :core:test :app:assembleRelease
+        run: ./gradlew --no-daemon :core:test :app:testDebugUnitTest :app:assembleRelease
       - name: Name the APK
         run: cp app/build/outputs/apk/release/app-release.apk ../murmur-keyboard.apk
       - uses: actions/upload-artifact@v4
