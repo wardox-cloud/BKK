@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Murmur</title>
+    <meta name="description" content="Personal voice-to-text: talk, and get clean text copied to your clipboard." />
+    <meta name="theme-color" content="#0e1014" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f6f5f2" media="(prefers-color-scheme: light)" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Murmur" />
+    <script type="module" src="./src/main.js"></script>
+  </head>
+  <body>
+    <div class="app">
+      <header class="bar">
+        <h1>Murmur</h1>
+        <div class="bar-actions">
+          <button id="open-history" class="icon-btn" type="button" aria-label="History">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7v5l3 2M3.5 12a8.5 8.5 0 1 0 2.6-6.1M3 4v4h4" /></svg>
+          </button>
+          <button id="open-settings" class="icon-btn" type="button" aria-label="Settings">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" /></svg>
+          </button>
+        </div>
+      </header>
+
+      <p id="install-tip" class="tip" hidden>
+        <span>Install it: tap <strong>Share</strong> then <strong>Add to Home Screen</strong>.</span>
+        <button id="dismiss-tip" class="text-btn" type="button">Got it</button>
+      </p>
+
+      <main class="output">
+        <textarea
+          id="text"
+          aria-label="Your text"
+          placeholder="Tap the mic and talk. Your words land here, cleaned up and copied, ready to paste anywhere."
+        ></textarea>
+        <div class="actions">
+          <button id="copy" class="pill" type="button" disabled>Copy</button>
+          <button id="share" class="pill" type="button" disabled hidden>Share</button>
+          <button id="toggle-raw" class="pill" type="button" disabled>Original</button>
+          <button id="redo" class="pill" type="button" disabled>Redo in style</button>
+        </div>
+      </main>
+
+      <footer class="dock">
+        <p class="status" role="status" aria-live="polite">
+          <span id="status-text"></span>
+          <button id="retry" class="text-btn" type="button" hidden>Try again</button>
+        </p>
+        <div id="styles" class="chips" role="radiogroup" aria-label="Writing style"></div>
+        <button id="mic" class="mic" type="button" aria-label="Start dictation" data-state="idle">
+          <span class="mic-level" aria-hidden="true"></span>
+          <svg class="glyph glyph-mic" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="9" y="3" width="6" height="11" rx="3" />
+            <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7" />
+          </svg>
+          <svg class="glyph glyph-stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2.5" /></svg>
+          <span class="glyph glyph-spin" aria-hidden="true"></span>
+        </button>
+        <p class="hint">
+          <span id="hint-text">Tap to talk, or hold for push-to-talk</span>
+          <button id="cancel" class="text-btn" type="button" hidden>Cancel</button>
+        </p>
+      </footer>
+    </div>
+
+    <dialog id="history" class="sheet" aria-labelledby="history-title" tabindex="-1">
+      <div class="sheet-body">
+        <div class="sheet-head">
+          <h2 id="history-title">History</h2>
+          <div class="bar-actions">
+            <button id="clear-history" class="text-btn" type="button">Clear all</button>
+            <button class="icon-btn" type="button" data-close aria-label="Close">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+            </button>
+          </div>
+        </div>
+        <ul id="history-list" class="history"></ul>
+        <p id="history-empty" class="fine">Nothing yet. Your dictations show up here.</p>
+      </div>
+    </dialog>
+
+    <dialog id="settings" class="sheet" aria-labelledby="settings-title" tabindex="-1">
+      <form id="settings-form" class="sheet-body" method="dialog">
+        <div class="sheet-head">
+          <h2 id="settings-title">Settings</h2>
+          <button class="icon-btn" type="button" data-close aria-label="Close">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </div>
+        <p id="settings-note" class="note" hidden></p>
+
+        <fieldset>
+          <legend>Speech to text</legend>
+          <label>Provider <select id="stt-provider"></select></label>
+          <label id="base-url-row">Base URL
+            <input id="stt-base-url" type="url" inputmode="url" placeholder="https://example.com/v1" autocapitalize="off" spellcheck="false" />
+          </label>
+          <label>API key
+            <input id="stt-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" />
+          </label>
+          <label>Model <input id="stt-model" autocapitalize="off" spellcheck="false" /></label>
+          <label>Language
+            <input id="language" placeholder="Auto-detect, or a code like en, es, ar" autocapitalize="off" spellcheck="false" />
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Cleanup with Claude</legend>
+          <label>Anthropic API key
+            <input id="anthropic-key" type="password" placeholder="sk-ant-... (leave empty for raw text)" autocomplete="off" autocapitalize="off" spellcheck="false" />
+          </label>
+          <label>Model <select id="claude-model"></select></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Personal dictionary</legend>
+          <textarea id="vocabulary" rows="3" placeholder="Names, brands and jargon it should always spell right, one per line"></textarea>
+        </fieldset>
+
+        <label class="check"><input id="auto-copy" type="checkbox" /> Copy to clipboard automatically</label>
+        <p class="fine">Keys are saved only on this device and sent to each provider when you dictate.</p>
+        <button class="primary" type="submit" value="save">Save</button>
+      </form>
+    </dialog>
+  </body>
+</html>
