@@ -169,6 +169,13 @@ def whisper_local(model, primer):
     return run
 
 
+def whisper_urdu(model, primer):
+    def run(clip):
+        segments, info = model.transcribe(clip["pcm"], beam_size=5, language="ur", initial_prompt=primer, condition_on_previous_text=False)
+        return " ".join(s.text.strip() for s in segments).strip(), {"detected": info.language}
+    return run
+
+
 def gemini(language):
     key = os.environ["GEMINI_API_KEY"]
 
@@ -249,6 +256,28 @@ def english_kept(reference, hypothesis):
     return sum(w in output for w in english) / len(english)
 
 
+def looped_or_leaked(reference, hypothesis, primer):
+    """True when the output repeats itself or copies the primer instead of the speech."""
+    words = normalize(hypothesis).split()
+    if any(words[i:i + 2] == words[i + 2:i + 4] == words[i + 4:i + 6] for i in range(max(0, len(words) - 5))):
+        return True
+    if any(len(set(words[i:i + 4])) == 1 for i in range(max(0, len(words) - 3))):
+        return True
+    if not primer:
+        return False
+    primer_words, said = normalize(primer).split(), set(normalize(reference).split())
+    phrases = {" ".join(primer_words[i:i + 3]) for i in range(len(primer_words) - 2)}
+    text = " ".join(words)
+    return any(phrase in text and not set(phrase.split()) <= said for phrase in phrases)
+
+
+# Alternative Whisper primers, compared with --primer-experiment.
+PRIMER_VARIANTS = {
+    "word list": "Roman Urdu aur English: haan, yaar, mujhe, kya, hai, nahi, theek hai, acha, kal, zaroor.",
+    "Roman-only sentence": "Haan yaar, main kal office jaunga, phir client ke saath meeting hai, theek hai?",
+}
+
+
 def mean(values):
     values = [v for v in values if v == v]
     return sum(values) / len(values) if values else float("nan")
@@ -259,6 +288,7 @@ def mean(values):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--clips", type=int, default=8)
+    parser.add_argument("--primer-experiment", action="store_true", help="also try alternative Whisper primers")
     args = parser.parse_args()
 
     check_prompt_parity()
@@ -272,6 +302,13 @@ def main():
         "Whisper turbo (plain, what a basic Groq setup gives)": whisper_local(model, None),
         "Whisper turbo + Murmur's Roman Urdu primer": whisper_local(model, transcription_primer("roman")),
     }
+    primers = {name: None for name in systems} | {"Whisper turbo + Murmur's Roman Urdu primer": transcription_primer("roman")}
+    if args.primer_experiment:
+        for label, primer in PRIMER_VARIANTS.items():
+            systems[f"Whisper turbo + {label} primer"] = whisper_local(model, primer)
+            primers[f"Whisper turbo + {label} primer"] = primer
+        systems["Whisper turbo + Roman-only sentence primer, language=ur"] = whisper_urdu(model, PRIMER_VARIANTS["Roman-only sentence"])
+        primers["Whisper turbo + Roman-only sentence primer, language=ur"] = PRIMER_VARIANTS["Roman-only sentence"]
     if os.environ.get("GROQ_API_KEY"):
         systems["Groq (Murmur, Roman Urdu)"] = openai_compatible("https://api.groq.com/openai/v1", "GROQ_API_KEY", "whisper-large-v3-turbo", "roman")
     if os.environ.get("OPENAI_API_KEY"):
@@ -317,19 +354,21 @@ def main():
         report += [f"## {title}", ""]
         if source == "engpk":
             report += ["Word error rate against the human transcript (lower is better).", "",
-                       "| System | Word error rate | Avg time |", "|---|---|---|"]
+                       "| System | Word error rate | Looped or leaked | Avg time |", "|---|---|---|---|"]
             for name in names:
-                report.append(f"| {name} | {mean(wer(r['reference'], r['outputs'][name]['text']) for r in rows):.0%} | "
+                leaks = sum(looped_or_leaked(r['reference'], r['outputs'][name]['text'], primers.get(name)) for r in rows)
+                report.append(f"| {name} | {mean(wer(r['reference'], r['outputs'][name]['text']) for r in rows):.0%} | {leaks} of {len(rows)} | "
                               f"{mean(r['outputs'][name]['seconds'] for r in rows):.1f}s |")
         else:
             report += ["The reference is Urdu script with English words in English. *English kept* = share of the speaker's English words that come out as English (Whisper tends to translate or rewrite them). "
                        "*Roman letters* = share of output letters in the Latin alphabet (should be near 100% for Roman Urdu). *Word error rate* only makes sense for output in Urdu script.", "",
-                       "| System | English kept | Roman letters | Word error rate (Urdu-script output) | Avg time |", "|---|---|---|---|---|"]
+                       "| System | English kept | Roman letters | Looped or leaked | Word error rate (Urdu-script output) | Avg time |", "|---|---|---|---|---|---|"]
             for name in names:
                 texts = [(r["reference"], r["outputs"][name]["text"]) for r in rows]
                 latin = mean(latin_share(h) for _, h in texts)
                 error_rate = f"{mean(wer(ref, h) for ref, h in texts):.0%}" if latin < 0.5 else "n/a"
-                report.append(f"| {name} | {mean(english_kept(ref, h) for ref, h in texts):.0%} | {latin:.0%} | {error_rate} | "
+                leaks = sum(looped_or_leaked(ref, h, primers.get(name)) for ref, h in texts)
+                report.append(f"| {name} | {mean(english_kept(ref, h) for ref, h in texts):.0%} | {latin:.0%} | {leaks} of {len(texts)} | {error_rate} | "
                               f"{mean(r['outputs'][name]['seconds'] for r in rows):.1f}s |")
             detected = defaultdict(int)
             for r in rows:

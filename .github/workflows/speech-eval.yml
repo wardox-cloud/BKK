@@ -12,6 +12,9 @@ on:
       clips:
         description: "Clips per source"
         default: "8"
+      extra:
+        description: "Extra flags, e.g. --primer-experiment"
+        default: ""
 
 permissions:
   contents: read
@@ -35,7 +38,7 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
       - name: Run speech test
         if: inputs.mode == 'run'
-        run: python eval/speech_eval.py --clips ${{ inputs.clips }}
+        run: python eval/speech_eval.py --clips ${{ inputs.clips }} ${{ inputs.extra }}
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
