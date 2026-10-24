@@ -49,4 +49,14 @@
     <string name="keyboard_heading">Optional: the Murmur keyboard</string>
     <string name="keyboard_help">If you\'d rather not use the bubble, switch to the Murmur keyboard when you want to talk.</string>
     <string name="bubble_always">Show the mic bubble even when I\'m not typing</string>
+    <string name="transcribe_label">Transcribe with Murmur</string>
+    <string name="transcribe_title">Transcribe a recording</string>
+    <string name="transcribe_nothing">Share a recording to Murmur from another app, such as Voice Recorder or WhatsApp.</string>
+    <string name="transcribe_no_key">Add your API key in Murmur first (a free Gemini key works), then share the recording again.</string>
+    <string name="transcribe_reading">Reading the recording…</string>
+    <string name="transcribe_working">Transcribing %1$d:%2$02d of audio…</string>
+    <string name="transcribe_done">Done, and copied.</string>
+    <string name="transcribe_trimmed">Only the first 7 minutes were transcribed.</string>
+    <string name="copy">Copy</string>
+    <string name="share">Share</string>
 </resources>

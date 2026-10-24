@@ -30,6 +30,23 @@
             android:taskAffinity=""
             android:theme="@style/Theme.Murmur.Panel" />
 
+        <activity
+            android:name=".TranscribeActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
+            android:exported="true"
+            android:label="@string/transcribe_label">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="audio/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/ogg" />
+            </intent-filter>
+        </activity>
+
         <service
             android:name=".BubbleService"
             android:exported="true"
