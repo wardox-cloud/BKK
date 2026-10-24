@@ -116,6 +116,15 @@ Open it, add your keys, tap the mic, talk, tap again. It says **Copied**, and yo
 
 ## Speech test
 
+Results so far, with Whisper only because no API keys are set yet (20 real clips per set, October 2026):
+
+| | Pakistani-accented English | Mixed Urdu + English |
+|---|---|---|
+| Whisper, no hint (a basic Groq setup) | 18% word errors | kept 40% of English words; often translated the Urdu into English, sometimes wrote Hindi script |
+| Whisper + Murmur's Roman Urdu hint | 18% word errors | kept 73% of English words, mostly Roman letters, but still translates some clips |
+
+Whisper is fine for accented English; its slips ("newlywed **chai** bride" for "shy bride") are the kind the cleanup step fixes. For mixed Urdu and English it isn't good enough, which is why Gemini is the default. An earlier hint with an English example sentence sometimes got copied into transcripts (2 of 20 clips). The current hint avoids full English sentences, and that dropped to 0 of 20.
+
 `eval/speech_eval.py` checks transcription on the manually corrected [UrduSpeech](https://huggingface.co/datasets/ASLP-lab/UrduSpeech) benchmark: real Pakistani speakers from podcasts, interviews, vlogs and shows, in two sets (Pakistani-accented English, and mixed Urdu-English). It always runs Whisper locally (the open model Groq serves). To include Gemini, OpenAI, Groq and the Claude cleanup, add `GEMINI_API_KEY`, `OPENAI_API_KEY`, `GROQ_API_KEY` and `ANTHROPIC_API_KEY` as repository secrets (**Settings → Secrets and variables → Actions**). Then run **Actions → Speech eval → Run workflow**. The report appears on the run's summary page. Only the keys you add are used. Each run costs a few cents.
 
 ## Develop
