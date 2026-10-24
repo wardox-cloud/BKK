@@ -1,6 +1,9 @@
-// Speech-to-text through any OpenAI-compatible /audio/transcriptions endpoint.
+// Speech-to-text: Gemini, or any OpenAI-compatible /audio/transcriptions endpoint.
+import { audioPart, geminiGenerate } from './gemini.js';
+import { transcriptionInstruction, transcriptionPrimer } from './prompts.js';
 
 export const STT_PROVIDERS = {
+  gemini: { label: 'Google Gemini (best for Urdu + English)', keyHint: 'AIza...' },
   openai: { label: 'OpenAI', baseUrl: 'https://api.openai.com/v1', keyHint: 'sk-...' },
   groq: { label: 'Groq', baseUrl: 'https://api.groq.com/openai/v1', keyHint: 'gsk_...' },
   custom: { label: 'Custom (OpenAI-compatible)', baseUrl: '', keyHint: 'API key' },
@@ -21,14 +24,26 @@ async function errorMessage(response) {
   }
 }
 
-export async function transcribe(blob, { provider, label, apiKey, baseUrl, model, language, vocabulary }) {
+// mode is a key of LANGUAGES (how the speaker talks); languageCode is an
+// optional ISO hint such as "en" for Whisper-style models.
+export async function transcribe(blob, { provider, label, apiKey, baseUrl, model, mode, languageCode, vocabulary }) {
+  if (provider === 'gemini') {
+    return geminiGenerate({
+      apiKey,
+      model,
+      system: transcriptionInstruction(mode, vocabulary),
+      parts: [await audioPart(blob), { text: 'Transcribe this recording.' }],
+    });
+  }
+
   const form = new FormData();
   form.append('file', blob, `dictation.${extensionFor(blob.type)}`);
   form.append('model', model);
   form.append('response_format', 'json');
-  if (language) form.append('language', language);
-  // Seeding the transcriber with names and jargon makes it spell them right.
-  if (vocabulary.length) form.append('prompt', `Vocabulary: ${vocabulary.join(', ')}.`);
+  if (languageCode) form.append('language', languageCode);
+  // Example text in the target style steers the script (Roman Urdu or Urdu)
+  // and the spelling of names.
+  form.append('prompt', transcriptionPrimer(mode, vocabulary));
 
   const init = { method: 'POST', headers: { Authorization: `Bearer ${apiKey}` }, body: form };
   const unreachable = new Error(`Couldn't reach ${label}. Check your connection, then try again.`);

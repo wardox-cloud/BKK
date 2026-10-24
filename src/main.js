@@ -1,12 +1,13 @@
 import './styles.css';
 import { Recorder } from './recorder.js';
 import { STT_PROVIDERS, transcribe } from './transcribe.js';
-import { CLAUDE_MODELS, STYLES, describePolishError, polish } from './polish.js';
+import { CLAUDE_MODELS, describePolishError, dictateWithGemini, polishWithClaude, polishWithGemini } from './polish.js';
+import { LANGUAGES, STYLES } from './prompts.js';
 import { copyText, copyWhenReady } from './clipboard.js';
 import { loadHistory, loadSettings, saveHistory, saveSettings, vocabularyList } from './storage.js';
 
 const HOLD_MS = 350; // a press longer than this is push-to-talk
-const MAX_RECORDING_MS = 10 * 60 * 1000; // keeps uploads under providers' 25 MB cap
+const MAX_RECORDING_MS = 6 * 60 * 1000; // keeps uploads under every provider's size cap
 const TIP_KEY = 'murmur.tipDismissed';
 
 const $ = (id) => document.getElementById(id);
@@ -31,9 +32,12 @@ const els = {
   sttProvider: $('stt-provider'),
   sttBaseUrl: $('stt-base-url'),
   baseUrlRow: $('base-url-row'),
+  languageRow: $('language-row'),
   sttKey: $('stt-key'),
   sttModel: $('stt-model'),
+  languageMode: $('language-mode'),
   language: $('language'),
+  cleanupEngine: $('cleanup-engine'),
   anthropicKey: $('anthropic-key'),
   claudeModel: $('claude-model'),
   vocabulary: $('vocabulary'),
@@ -80,7 +84,7 @@ function updateActions() {
   els.copy.disabled = !hasText;
   els.share.disabled = !hasText;
   els.toggleRaw.disabled = !hasText || current.raw === current.text;
-  els.redo.disabled = !hasText || !settings.anthropicKey || settings.style === 'raw';
+  els.redo.disabled = !hasText || !cleanupReady() || settings.style === 'raw';
   els.toggleRaw.textContent = showingRaw ? 'Polished' : 'Original';
 }
 
@@ -99,11 +103,11 @@ function formatDuration(ms) {
 
 function renderStyles() {
   els.styles.replaceChildren(
-    ...Object.entries(STYLES).map(([id, style]) => {
+    ...Object.entries(STYLES).map(([id, label]) => {
       const chip = document.createElement('button');
       chip.type = 'button';
       chip.className = 'chip';
-      chip.textContent = style.label;
+      chip.textContent = label;
       chip.setAttribute('role', 'radio');
       chip.setAttribute('aria-checked', String(id === settings.style));
       chip.addEventListener('click', () => {
@@ -121,6 +125,19 @@ function renderStyles() {
 
 function sttReady() {
   return Boolean(settings.sttKeys[settings.sttProvider]?.trim());
+}
+
+function cleanupReady() {
+  return Boolean(cleanupKey());
+}
+
+function cleanupKey() {
+  return (settings.cleanupEngine === 'gemini' ? settings.sttKeys.gemini : settings.anthropicKey).trim();
+}
+
+// What both steps need to know about how you talk.
+function speechOptions(style) {
+  return { mode: settings.languageMode, style, vocabulary: vocabularyList(settings) };
 }
 
 async function startRecording() {
@@ -183,23 +200,44 @@ function cancelRecording() {
 }
 
 async function processAudio(blob) {
-  setStatus('Transcribing…');
   const provider = settings.sttProvider;
+  const { style } = settings;
+  const noSpeech = "Didn't catch any speech. Try again a little closer to the mic.";
+
+  // Gemini can listen and clean up in a single call: faster and cheaper.
+  if (provider === 'gemini' && settings.cleanupEngine === 'gemini' && style !== 'raw') {
+    setStatus('Transcribing and polishing…');
+    const text = await dictateWithGemini(blob, {
+      apiKey: settings.sttKeys.gemini.trim(),
+      model: settings.sttModels.gemini.trim(),
+      ...speechOptions(style),
+    });
+    if (!text) throw new Error(noSpeech);
+    lastAudio = null;
+    // There's no separate raw transcript in this mode.
+    const entry = { at: Date.now(), raw: text, text, style };
+    showEntry(entry);
+    history.unshift(entry);
+    saveHistory(history);
+    return { text };
+  }
+
+  setStatus('Transcribing…');
   const raw = await transcribe(blob, {
     provider,
     label: STT_PROVIDERS[provider].label,
     apiKey: settings.sttKeys[provider].trim(),
     baseUrl: provider === 'custom' ? settings.customBaseUrl.trim() : STT_PROVIDERS[provider].baseUrl,
     model: settings.sttModels[provider].trim(),
-    language: settings.language.trim(),
-    vocabulary: vocabularyList(settings),
+    languageCode: settings.language.trim(),
+    ...speechOptions(style),
   });
-  if (!raw) throw new Error("Didn't catch any speech. Try again a little closer to the mic.");
+  if (!raw) throw new Error(noSpeech);
   lastAudio = null;
 
-  const entry = { at: Date.now(), raw, text: raw, style: settings.style };
+  const entry = { at: Date.now(), raw, text: raw, style };
   showEntry(entry);
-  const result = await polishText(raw, settings.style);
+  const result = await polishText(raw, style);
   entry.text = result.text;
   showEntry(entry);
   history.unshift(entry);
@@ -208,22 +246,18 @@ async function processAudio(blob) {
 }
 
 async function polishText(raw, style) {
-  if (style === 'raw' || !settings.anthropicKey.trim()) return { text: raw };
+  if (style === 'raw' || !cleanupReady()) return { text: raw };
   setStatus('Polishing…');
+  const gemini = settings.cleanupEngine === 'gemini';
   try {
-    const text = await polish(
-      raw,
-      {
-        apiKey: settings.anthropicKey.trim(),
-        model: settings.claudeModel,
-        style,
-        vocabulary: vocabularyList(settings),
-      },
-      (live) => {
-        els.text.value = live;
-      },
-    );
-    return text ? { text } : { text: raw, note: 'Claude sent back nothing, so this is the raw transcript.' };
+    const options = { apiKey: cleanupKey(), ...speechOptions(style) };
+    const text = gemini
+      ? await polishWithGemini(raw, { ...options, model: settings.sttModels.gemini.trim() })
+      : await polishWithClaude(raw, { ...options, model: settings.claudeModel }, (live) => {
+          els.text.value = live;
+        });
+    const engine = gemini ? 'Gemini' : 'Claude';
+    return text ? { text } : { text: raw, note: `${engine} sent back nothing, so this is the raw transcript.` };
   } catch (error) {
     return { text: raw, note: `Couldn't polish (${describePolishError(error)}), so this is the raw transcript.` };
   }
@@ -390,6 +424,8 @@ let draft = null; // per-provider keys and models being edited in the open dialo
 function fillProviderFields() {
   const provider = els.sttProvider.value;
   els.baseUrlRow.hidden = provider !== 'custom';
+  // Gemini takes instructions instead of a language code.
+  els.languageRow.hidden = provider === 'gemini';
   els.sttKey.value = draft.sttKeys[provider];
   els.sttKey.placeholder = STT_PROVIDERS[provider].keyHint;
   els.sttModel.value = draft.sttModels[provider];
@@ -406,7 +442,9 @@ function openSettings(note = '') {
   els.settingsNote.hidden = !note;
   els.sttProvider.value = settings.sttProvider;
   els.sttBaseUrl.value = settings.customBaseUrl;
+  els.languageMode.value = settings.languageMode;
   els.language.value = settings.language;
+  els.cleanupEngine.value = settings.cleanupEngine;
   els.anthropicKey.value = settings.anthropicKey;
   els.claudeModel.value = settings.claudeModel;
   els.vocabulary.value = settings.vocabulary;
@@ -419,6 +457,7 @@ els.sttProvider.append(
   ...Object.entries(STT_PROVIDERS).map(([id, provider]) => new Option(provider.label, id)),
 );
 els.claudeModel.append(...CLAUDE_MODELS.map((model) => new Option(model.label, model.id)));
+els.languageMode.append(...Object.entries(LANGUAGES).map(([id, label]) => new Option(label, id)));
 
 els.sttProvider.addEventListener('change', () => {
   stashProviderFields(draft.provider);
@@ -434,7 +473,9 @@ els.settingsForm.addEventListener('submit', () => {
     sttKeys: draft.sttKeys,
     sttModels: draft.sttModels,
     customBaseUrl: els.sttBaseUrl.value.trim(),
+    languageMode: els.languageMode.value,
     language: els.language.value.trim(),
+    cleanupEngine: els.cleanupEngine.value,
     anthropicKey: els.anthropicKey.value.trim(),
     claudeModel: els.claudeModel.value,
     vocabulary: els.vocabulary.value,
@@ -491,5 +532,7 @@ renderStyles();
 setState('idle');
 if (history[0]) showEntry(history[0]);
 if (!sttReady()) {
-  openSettings('Welcome! Add a speech-to-text key to begin. An Anthropic key is optional but turns rambling speech into clean text.');
+  openSettings(
+    'Welcome! Add a speech-to-text key to begin (Gemini handles mixed English and Urdu best). An Anthropic key is optional but turns rambling speech into clean text.',
+  );
 }

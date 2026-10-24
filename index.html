@@ -98,6 +98,12 @@
         <p id="settings-note" class="note" hidden></p>
 
         <fieldset>
+          <legend>How you speak</legend>
+          <label>Languages <select id="language-mode"></select></label>
+          <p class="fine">Mixed English and Urdu works best with Gemini as the speech-to-text provider.</p>
+        </fieldset>
+
+        <fieldset>
           <legend>Speech to text</legend>
           <label>Provider <select id="stt-provider"></select></label>
           <label id="base-url-row">Base URL
@@ -107,13 +113,19 @@
             <input id="stt-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" />
           </label>
           <label>Model <input id="stt-model" autocapitalize="off" spellcheck="false" /></label>
-          <label>Language
-            <input id="language" placeholder="Auto-detect, or a code like en, es, ar" autocapitalize="off" spellcheck="false" />
+          <label id="language-row">Language hint
+            <input id="language" placeholder="Leave empty for mixed languages, or e.g. en" autocapitalize="off" spellcheck="false" />
           </label>
         </fieldset>
 
         <fieldset>
-          <legend>Cleanup with Claude</legend>
+          <legend>Cleanup</legend>
+          <label>Cleaned up by
+            <select id="cleanup-engine">
+              <option value="claude">Claude (best editing)</option>
+              <option value="gemini">Gemini (uses your Gemini key; with Gemini transcribing it's one step, fastest and cheapest)</option>
+            </select>
+          </label>
           <label>Anthropic API key
             <input id="anthropic-key" type="password" placeholder="sk-ant-... (leave empty for raw text)" autocomplete="off" autocapitalize="off" spellcheck="false" />
           </label>

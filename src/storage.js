@@ -5,11 +5,18 @@ const HISTORY_KEY = 'murmur.history';
 const HISTORY_LIMIT = 100;
 
 export const DEFAULT_SETTINGS = {
-  sttProvider: 'openai',
-  sttKeys: { openai: '', groq: '', custom: '' },
-  sttModels: { openai: 'gpt-4o-transcribe', groq: 'whisper-large-v3-turbo', custom: '' },
+  sttProvider: 'gemini',
+  sttKeys: { gemini: '', openai: '', groq: '', custom: '' },
+  sttModels: {
+    gemini: 'gemini-3.6-flash',
+    openai: 'gpt-4o-transcribe',
+    groq: 'whisper-large-v3-turbo',
+    custom: '',
+  },
   customBaseUrl: '',
+  languageMode: 'roman',
   language: '',
+  cleanupEngine: 'claude',
   anthropicKey: '',
   claudeModel: 'claude-opus-5-5',
   style: 'clean',
