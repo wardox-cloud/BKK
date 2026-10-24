@@ -2,6 +2,8 @@ package app.murmur
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.drawable.GradientDrawable
@@ -229,11 +231,20 @@ class MurmurKeyboard : InputMethodService() {
         state = State.WORKING
         render()
         val settings = prefs.dictationSettings()
+        val target = currentField()
         worker.execute {
             try {
                 val result = dictation.run(wav, settings) { stage -> main.post { setStatus(describe(stage)) } }
                 main.post {
                     failedAudio = null
+                    if (currentField() != target || currentInputConnection == null) {
+                        // You moved to another text box while it was working; don't type into the wrong one.
+                        copyToClipboard(result.text)
+                        state = State.IDLE
+                        render()
+                        setStatus("The text box changed, so it's copied instead. Long-press to paste.")
+                        return@post
+                    }
                     insert(result.text)
                     last = result
                     finish(result.note)
@@ -321,6 +332,14 @@ class MurmurKeyboard : InputMethodService() {
         val output = if (needsSpace) " $text" else text
         input.commitText(output, 1)
         lastInserted = output
+    }
+
+    private fun currentField() = currentInputEditorInfo?.let { it.packageName to it.fieldId }
+
+    private fun copyToClipboard(text: String) {
+        (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("Murmur", text))
+        lastInserted = null
+        last = null
     }
 
     private fun cursorFollows(inserted: String) =
