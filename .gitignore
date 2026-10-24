@@ -6,3 +6,4 @@ eval-results/
 android/.gradle/
 android/**/build/
 android/local.properties
+__pycache__/
