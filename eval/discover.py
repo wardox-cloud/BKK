@@ -7,12 +7,14 @@ from huggingface_hub import HfApi, hf_hub_download
 api = HfApi()
 
 REPOS = {
-    "edinburghcstr/edacc": None,
-    "ai4bharat/Svarah": None,
-    "byan/cs-fleurs": r"(hin|urd|hi_|ur_|eng|readme|\.json|\.tsv|\.csv)",
-    "google/fleurs": r"ur_pk|hi_in|readme",
+    "ASLP-lab/UrduSpeech": None,
+    "dianavdavidson/MUCS-Hinglish": None,
+    "dianavdavidson/indic-voices-hinglish-nospeakeroverlap-spon3.3-acronyms-fixed2": None,
+    "naradatum/hinglish-code-switched-conversations-v1": None,
+    "agarwalayushi/hinglish": None,
+    "google/fleurs": r"parquet-data/ur_pk/test",
 }
-SEARCHES = ["urdu", "code-switch", "codeswitch", "code-switched", "hinglish", "pakistani", "indian english", "urdu english"]
+SEARCHES = ["roman urdu", "urdu asr", "urdu speech"]
 
 
 def card(repo):
@@ -51,7 +53,9 @@ def main():
             continue
         print(f"  {len(files)} files")
         shown = [f for f in files if not pattern or re.search(pattern, f, re.I)]
-        for f in shown[:150]:
+        folders = sorted({f.rsplit("/", 1)[0] if "/" in f else "." for f in shown})
+        print(f"  folders: {folders[:60]}")
+        for f in [f for f in shown if not f.endswith((".wav", ".flac", ".mp3"))][:60]:
             print("   ", f)
         card(repo)
         parquets = [f for f in shown if f.endswith(".parquet")]
