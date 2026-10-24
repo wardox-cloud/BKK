@@ -11,7 +11,7 @@
         <item name="android:textColorSecondary">@color/muted</item>
     </style>
 
-    <style name="Murmur.Heading">
+    <style name="Murmur.Heading" parent="">
         <item name="android:textSize">16sp</item>
         <item name="android:textStyle">bold</item>
         <item name="android:textColor">@color/text</item>
@@ -19,13 +19,13 @@
         <item name="android:layout_marginBottom">8dp</item>
     </style>
 
-    <style name="Murmur.Label">
+    <style name="Murmur.Label" parent="">
         <item name="android:textSize">13sp</item>
         <item name="android:textColor">@color/muted</item>
         <item name="android:layout_marginTop">10dp</item>
     </style>
 
-    <style name="Murmur.KeyButton">
+    <style name="Murmur.KeyButton" parent="">
         <item name="android:layout_width">56dp</item>
         <item name="android:layout_height">48dp</item>
         <item name="android:background">?android:attr/selectableItemBackgroundBorderless</item>

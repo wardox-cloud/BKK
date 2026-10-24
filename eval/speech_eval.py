@@ -19,16 +19,18 @@ import json
 import os
 import random
 import re
+import subprocess
 import time
 import unicodedata
 import wave
 from collections import defaultdict
 from pathlib import Path
 
+import imageio_ffmpeg
 import jiwer
 import numpy as np
 import requests
-from faster_whisper import WhisperModel, decode_audio
+from faster_whisper import WhisperModel
 from huggingface_hub import HfApi, hf_hub_download
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -136,9 +138,16 @@ def pick_clips(api, prefix, count, seed=7):
                 picked.append(by_category[category].pop())
     for clip in picked:
         clip["path"] = hf_hub_download(REPO, clip["audio"], repo_type="dataset")
-        clip["pcm"] = decode_audio(clip["path"], sampling_rate=16000)
+        clip["pcm"] = decode(clip["path"])
         clip["seconds"] = round(len(clip["pcm"]) / 16000, 1)
     return picked
+
+
+def decode(path):
+    """Any audio file to 16 kHz mono float32, via a bundled ffmpeg."""
+    raw = subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(), "-v", "error", "-i", path, "-ac", "1", "-ar", "16000", "-f", "s16le", "-"],
+                         check=True, capture_output=True).stdout
+    return np.frombuffer(raw, "<i2").astype(np.float32) / 32768
 
 
 def wav_bytes(pcm):

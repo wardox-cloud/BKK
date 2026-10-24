@@ -5,3 +5,4 @@ faster-whisper==1.2.1
 jiwer==4.0.0
 requests==2.34.2
 anthropic==2.3.0
+imageio-ffmpeg==0.6.0
