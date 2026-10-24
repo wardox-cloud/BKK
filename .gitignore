@@ -2,3 +2,7 @@ node_modules/
 dist/
 .vercel/
 .DS_Store
+eval-results/
+android/.gradle/
+android/**/build/
+android/local.properties
