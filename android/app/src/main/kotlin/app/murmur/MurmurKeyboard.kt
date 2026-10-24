@@ -37,7 +37,14 @@ class MurmurKeyboard : InputMethodService() {
 
     private lateinit var prefs: Prefs
     private val prompts by lazy { Prompts.load() }
-    private val dictation by lazy { Dictation(prompts) }
+    private var dictationInstance: Dictation? = null
+
+    /** Settable so tests can point it at a fake server. */
+    internal var dictation: Dictation
+        get() = dictationInstance ?: Dictation(prompts).also { dictationInstance = it }
+        set(value) {
+            dictationInstance = value
+        }
     private val recorder = PcmRecorder()
     private val main = Handler(Looper.getMainLooper())
     private val worker = Executors.newSingleThreadExecutor()
@@ -227,7 +234,7 @@ class MurmurKeyboard : InputMethodService() {
         render()
     }
 
-    private fun process(wav: ByteArray) {
+    internal fun process(wav: ByteArray) {
         state = State.WORKING
         render()
         val settings = prefs.dictationSettings()

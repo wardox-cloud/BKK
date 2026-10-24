@@ -1,6 +1,9 @@
 package app.murmur
 
 import android.Manifest
+import android.content.ClipboardManager
+import android.content.Context
+import android.os.Looper
 import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import android.widget.EditText
@@ -8,7 +11,12 @@ import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.TextView
 import app.murmur.core.CleanupEngine
+import app.murmur.core.Dictation
+import app.murmur.core.Prompts
 import app.murmur.core.SttProvider
+import app.murmur.core.Wav
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -80,5 +88,54 @@ class SmokeTest {
         (styles.getChildAt(3) as TextView).performClick() // Notes
         assertEquals("notes", Prefs(keyboard).style)
         assertEquals("Notes", (styles.getChildAt(3) as TextView).text)
+    }
+
+    @Test
+    fun `a dictation runs end to end inside the keyboard`() {
+        val (keyboard, status) = readyKeyboard()
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setBody("""{"candidates":[{"content":{"parts":[{"text":"yaar mujhe kal report bhejni hai"}]}}]}"""))
+        keyboard.dictation = Dictation(Prompts.load(), baseUrls = SttProvider.entries.associateWith { server.url("/fake").toString() })
+
+        keyboard.process(Wav.encode(ByteArray(32_000)))
+        waitFor(status) { it.contains("copied") }
+
+        // No app's text box is attached in this test, so the text goes to the clipboard.
+        val clipboard = RuntimeEnvironment.getApplication().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        assertEquals("yaar mujhe kal report bhejni hai", clipboard.primaryClip!!.getItemAt(0).text.toString())
+        assertTrue(server.takeRequest().path!!.endsWith("gemini-3.6-flash:generateContent"))
+        server.shutdown()
+    }
+
+    @Test
+    fun `a failed dictation explains why and offers a retry`() {
+        val (keyboard, status) = readyKeyboard()
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setResponseCode(400).setBody("""{"error":{"message":"API key not valid.","details":[{"reason":"API_KEY_INVALID"}]}}"""))
+        keyboard.dictation = Dictation(Prompts.load(), baseUrls = SttProvider.entries.associateWith { server.url("/fake").toString() })
+
+        keyboard.process(Wav.encode(ByteArray(32_000)))
+        waitFor(status) { it.contains("Tap here to try again") }
+        assertTrue(status.text.toString(), status.text.contains("Gemini rejected the API key"))
+        server.shutdown()
+    }
+
+    private fun readyKeyboard(): Pair<MurmurKeyboard, TextView> {
+        shadowOf(RuntimeEnvironment.getApplication()).grantPermissions(Manifest.permission.RECORD_AUDIO)
+        val keyboard = Robolectric.buildService(MurmurKeyboard::class.java).create().get()
+        Prefs(keyboard).edit { putString("key_gemini", "AIza-test") }
+        val view = keyboard.onCreateInputView()
+        keyboard.onStartInputView(EditorInfo(), false)
+        return keyboard to view.findViewById(R.id.status)
+    }
+
+    /** Runs the main thread until [done] holds for the status text, for up to ten seconds. */
+    private fun waitFor(status: TextView, done: (String) -> Boolean) {
+        val deadline = System.currentTimeMillis() + 10_000
+        while (!done(status.text.toString()) && System.currentTimeMillis() < deadline) {
+            Thread.sleep(50)
+            shadowOf(Looper.getMainLooper()).idle()
+        }
+        assertTrue("status was: ${status.text}", done(status.text.toString()))
     }
 }
