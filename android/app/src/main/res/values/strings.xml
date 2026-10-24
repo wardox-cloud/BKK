@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Murmur</string>
+    <string name="subtype_label">Voice typing</string>
+    <string name="mic">Start or stop dictation</string>
+    <string name="switch_keyboard">Switch back to your other keyboard</string>
+    <string name="undo">Undo last dictation</string>
+    <string name="backspace">Delete</string>
+    <string name="enter">Enter</string>
+    <string name="intro">Talk in English, Urdu or both. Murmur writes it down cleanly and types it into whatever app you\'re using.</string>
+    <string name="step_enable">1. Turn on the Murmur keyboard</string>
+    <string name="step_enable_button">Open keyboard settings</string>
+    <string name="step_mic">2. Allow the microphone</string>
+    <string name="step_mic_button">Allow</string>
+    <string name="step_switch">3. Switch to Murmur when you want to talk. Tap the keyboard button at the bottom of your screen, or the globe key.</string>
+    <string name="step_switch_button">Choose keyboard</string>
+    <string name="how_you_speak">How you speak</string>
+    <string name="speech_to_text">Speech to text</string>
+    <string name="provider">Provider</string>
+    <string name="api_key">API key</string>
+    <string name="model">Model</string>
+    <string name="cleanup">Cleanup</string>
+    <string name="cleaned_up_by">Cleaned up by</string>
+    <string name="anthropic_key">Anthropic API key (leave empty for raw text)</string>
+    <string name="gemini_key_for_cleanup">Gemini API key (for Gemini cleanup)</string>
+    <string name="claude_model">Claude model</string>
+    <string name="dictionary">Personal dictionary</string>
+    <string name="dictionary_hint">Names, brands and jargon it should always spell right, one per line</string>
+    <string name="switch_back">Go back to my normal keyboard after each dictation</string>
+    <string name="save">Save</string>
+    <string name="saved">Saved</string>
+    <string name="try_it">Try it here</string>
+    <string name="try_it_hint">Tap here, switch to Murmur, and talk</string>
+    <string name="privacy">Your keys and settings stay on this phone. Audio goes to the speech-to-text service you picked and the text to the cleanup service. Nothing else is sent anywhere.</string>
+    <string name="done_mark">Done</string>
+</resources>

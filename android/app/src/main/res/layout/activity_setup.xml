@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/app_name"
+            android:textColor="@color/text"
+            android:textSize="28sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="@string/intro"
+            android:textColor="@color/muted"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/step_enable"
+            style="@style/Murmur.Heading"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/step_enable" />
+
+        <Button
+            android:id="@+id/enable"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/step_enable_button" />
+
+        <TextView
+            android:id="@+id/step_mic"
+            style="@style/Murmur.Heading"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/step_mic" />
+
+        <Button
+            android:id="@+id/allow_mic"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/step_mic_button" />
+
+        <TextView
+            style="@style/Murmur.Heading"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/step_switch" />
+
+        <Button
+            android:id="@+id/choose_keyboard"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/step_switch_button" />
+
+        <TextView
+            style="@style/Murmur.Heading"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/try_it" />
+
+        <EditText
+            android:id="@+id/try_it"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/try_it_hint"
+            android:importantForAutofill="no"
+            android:inputType="textMultiLine|textCapSentences"
+            android:minLines="3" />
+
+        <TextView
+            style="@style/Murmur.Heading"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/how_you_speak" />
+
+        <Spinner
+            android:id="@+id/language"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            style="@style/Murmur.Heading"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/speech_to_text" />
+
+        <TextView
+            style="@style/Murmur.Label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/provider" />
+
+        <Spinner
+            android:id="@+id/provider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            style="@style/Murmur.Label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/api_key" />
+
+        <EditText
+            android:id="@+id/stt_key"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:importantForAutofill="no"
+            android:inputType="textPassword" />
+
+        <TextView
+            style="@style/Murmur.Label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/model" />
+
+        <EditText
+            android:id="@+id/stt_model"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:importantForAutofill="no"
+            android:inputType="text" />
+
+        <TextView
+            style="@style/Murmur.Heading"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/cleanup" />
+
+        <TextView
+            style="@style/Murmur.Label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/cleaned_up_by" />
+
+        <Spinner
+            android:id="@+id/cleanup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:id="@+id/gemini_cleanup_key_label"
+            style="@style/Murmur.Label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/gemini_key_for_cleanup" />
+
+        <EditText
+            android:id="@+id/gemini_cleanup_key"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:importantForAutofill="no"
+            android:inputType="textPassword" />
+
+        <TextView
+            android:id="@+id/anthropic_key_label"
+            style="@style/Murmur.Label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/anthropic_key" />
+
+        <EditText
+            android:id="@+id/anthropic_key"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:importantForAutofill="no"
+            android:inputType="textPassword" />
+
+        <TextView
+            android:id="@+id/claude_model_label"
+            style="@style/Murmur.Label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/claude_model" />
+
+        <Spinner
+            android:id="@+id/claude_model"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            style="@style/Murmur.Heading"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/dictionary" />
+
+        <EditText
+            android:id="@+id/vocabulary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="top"
+            android:hint="@string/dictionary_hint"
+            android:importantForAutofill="no"
+            android:inputType="textMultiLine"
+            android:minLines="3" />
+
+        <CheckBox
+            android:id="@+id/switch_back"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/switch_back" />
+
+        <Button
+            android:id="@+id/save"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:backgroundTint="@color/accent"
+            android:text="@string/save"
+            android:textColor="@color/on_accent" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/privacy"
+            android:textColor="@color/muted"
+            android:textSize="13sp" />
+    </LinearLayout>
+</ScrollView>
