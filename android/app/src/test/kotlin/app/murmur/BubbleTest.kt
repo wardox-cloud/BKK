@@ -32,7 +32,7 @@ class BubbleTest {
     private val app = RuntimeEnvironment.getApplication()
     private val server = MockWebServer()
     private lateinit var bubble: BubbleService
-    private val actions = mutableListOf<Pair<Int, Bundle?>>()
+    private val performed = mutableListOf<Pair<Int, Bundle?>>()
 
     @Before
     fun setUp() {
@@ -52,7 +52,7 @@ class BubbleTest {
         this.text = text
         setTextSelection(cursor, cursor)
         shadowOf(this).setOnPerformActionListener { action, args ->
-            actions += action to args
+            performed += action to args
             accept(action)
         }
     }
@@ -86,22 +86,22 @@ class BubbleTest {
     fun `it types the dictation at the cursor`() {
         bubble.findTextBox = { textBox("Hi", 2) }
         bubble.process(ByteArray(32_000))
-        waitUntil { actions.size >= 2 }
+        waitUntil { performed.size >= 2 }
 
-        assertEquals(AccessibilityNodeInfo.ACTION_SET_TEXT, actions[0].first)
+        assertEquals(AccessibilityNodeInfo.ACTION_SET_TEXT, performed[0].first)
         assertEquals(
             "Hi yaar mujhe kal report bhejni hai",
-            actions[0].second!!.getCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE).toString(),
+            performed[0].second!!.getCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE).toString(),
         )
-        assertEquals(AccessibilityNodeInfo.ACTION_SET_SELECTION, actions[1].first)
-        assertEquals(35, actions[1].second!!.getInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT))
+        assertEquals(AccessibilityNodeInfo.ACTION_SET_SELECTION, performed[1].first)
+        assertEquals(35, performed[1].second!!.getInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT))
     }
 
     @Test
     fun `apps that ignore set-text get a paste instead`() {
         bubble.findTextBox = { textBox("Hi", 2) { it != AccessibilityNodeInfo.ACTION_SET_TEXT } }
         bubble.process(ByteArray(32_000))
-        waitUntil { actions.any { it.first == AccessibilityNodeInfo.ACTION_PASTE } }
+        waitUntil { performed.any { it.first == AccessibilityNodeInfo.ACTION_PASTE } }
 
         assertEquals(" yaar mujhe kal report bhejni hai", clipboardText())
     }
