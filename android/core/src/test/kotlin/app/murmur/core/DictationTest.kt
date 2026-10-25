@@ -6,6 +6,7 @@ import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
+import java.time.Instant
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertContains
@@ -25,6 +26,12 @@ class DictationTest {
     var geminiTranscript = "yaar mujhe kal um the report bhejni hai na, so please remind me"
     var geminiStatus = 200
     var geminiOutOfQuota = setOf<String>()
+    var geminiOutForTheMinute = setOf<String>()
+    var geminiModels: List<String>? = listOf(
+        "gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3.6-pro", "gemini-embedding-001",
+    )
+    var clock: Instant = Instant.parse("2026-10-25T08:00:00Z") // 1 am in California
+    private val quota = GeminiQuota(now = { clock })
     var claudeStatus = 200
     var claudeStopReason = "end_turn"
 
@@ -48,6 +55,7 @@ class DictationTest {
                 requests += request to body
                 val path = request.path.orEmpty()
                 return when {
+                    path == "/gemini?pageSize=1000" -> models()
                     path.contains(":generateContent") -> gemini(body, path)
                     path.contains("/audio/transcriptions") ->
                         MockResponse().setBody("""{"text":"yaar mujhe kal report bhejni hai, so please remind me"}""")
@@ -62,10 +70,23 @@ class DictationTest {
     @AfterTest
     fun stop() = server.shutdown()
 
+    private fun models(): MockResponse {
+        val models = geminiModels ?: return MockResponse().setResponseCode(404)
+        val listed = models.map { mapOf("name" to "models/$it", "supportedGenerationMethods" to listOf("generateContent", "countTokens")) }
+        return MockResponse().setBody(json.writeValueAsString(mapOf("models" to listed)))
+    }
+
+    /** Gemini's real 429 reply, for the daily or the per-minute allowance. */
+    private fun outOfQuota(perDay: Boolean) = MockResponse().setResponseCode(429).setBody(
+        """{"error":{"code":429,"status":"RESOURCE_EXHAUSTED","message":"You exceeded your current quota.","details":[""" +
+            """{"@type":"type.googleapis.com/google.rpc.QuotaFailure","violations":[{"quotaMetric":"generativelanguage.googleapis.com/generate_content_free_tier_requests",""" +
+            """"quotaId":"GenerateRequestsPer${if (perDay) "Day" else "Minute"}PerProjectPerModel-FreeTier","quotaValue":"${if (perDay) 20 else 10}"}]},""" +
+            """{"@type":"type.googleapis.com/google.rpc.RetryInfo","retryDelay":"12s"}]}}""",
+    )
+
     private fun gemini(body: String, path: String): MockResponse {
-        if (geminiOutOfQuota.any { path.contains("/$it:") }) {
-            return MockResponse().setResponseCode(429).setBody("""{"error":{"code":429,"status":"RESOURCE_EXHAUSTED","message":"Quota exceeded"}}""")
-        }
+        if (geminiOutOfQuota.any { path.contains("/$it:") }) return outOfQuota(perDay = true)
+        if (geminiOutForTheMinute.any { path.contains("/$it:") }) return outOfQuota(perDay = false)
         if (geminiStatus != 200) {
             return MockResponse().setResponseCode(geminiStatus).setBody(
                 """{"error":{"code":400,"message":"API key not valid.","status":"INVALID_ARGUMENT","details":[{"reason":"API_KEY_INVALID"}]}}""",
@@ -95,9 +116,14 @@ class DictationTest {
             SttProvider.GROQ to server.url("/groq").toString(),
         ),
         anthropicBaseUrl = server.url("/").toString().trimEnd('/'),
+        quota = quota,
     )
 
     private fun bodyOf(index: Int): JsonNode = json.readTree(requests[index].second)
+
+    private fun paths() = requests.map { it.first.path }
+
+    private val freeSettings get() = settings.copy(cleanup = CleanupEngine.GEMINI)
 
     @Test
     fun `gemini transcribes and claude cleans up in roman urdu`() {
@@ -201,23 +227,91 @@ class DictationTest {
     }
 
     @Test
-    fun `when the free quota runs out it falls back to flash-lite`() {
+    fun `when a model's free requests run out it moves to the next flash model`() {
         geminiOutOfQuota = setOf("gemini-3.6-flash")
-        val result = dictation().run(wav, settings.copy(cleanup = CleanupEngine.GEMINI))
+        val result = dictation().run(wav, freeSettings)
 
         assertEquals(
-            listOf("/gemini/gemini-3.6-flash:generateContent", "/gemini/gemini-flash-lite-latest:generateContent"),
-            requests.map { it.first.path },
+            listOf(
+                "/gemini/gemini-3.6-flash:generateContent",
+                "/gemini?pageSize=1000",
+                "/gemini/gemini-3.5-flash:generateContent",
+            ),
+            paths(),
         )
-        assertFalse(bodyOf(1).has("generationConfig")) // the alias isn't a gemini-3 id
+        assertEquals("AIza-test", requests[1].first.getHeader("x-goog-api-key"))
         assertEquals("Yaar, mujhe kal report bhejni hai, so please remind me.", result.text)
     }
 
     @Test
-    fun `when every free quota is used up it says so`() {
-        geminiOutOfQuota = setOf("gemini-3.6-flash", "gemini-flash-lite-latest")
-        val error = assertFailsWith<DictationException> { dictation().run(wav, settings.copy(cleanup = CleanupEngine.GEMINI)) }
-        assertEquals("You've used Gemini's free requests for now. Try again in a little while.", error.message)
+    fun `a used-up model is skipped until the daily reset`() {
+        geminiOutOfQuota = setOf("gemini-3.6-flash")
+        dictation().run(wav, freeSettings)
+        requests.clear()
+
+        // Later the same day: straight to the model that has requests left, no lookup.
+        clock = clock.plusSeconds(6 * 3600)
+        dictation().run(wav, freeSettings)
+        assertEquals(listOf("/gemini/gemini-3.5-flash:generateContent"), paths())
+        requests.clear()
+
+        // After midnight in California the allowance is back.
+        clock = Instant.parse("2026-10-26T07:00:01Z")
+        geminiOutOfQuota = emptySet()
+        dictation().run(wav, freeSettings)
+        assertEquals(listOf("/gemini/gemini-3.6-flash:generateContent"), paths())
+    }
+
+    @Test
+    fun `when every free quota is used up it says when they come back`() {
+        geminiOutOfQuota = setOf("gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite")
+        val error = assertFailsWith<DictationException> { dictation().run(wav, freeSettings) }
+        assertContains(error.message!!, "You've used today's free Gemini requests on every model Murmur can use. They come back at ")
+        assertEquals(listOf(20), quota.rests().map { it.perDay }.distinct())
+    }
+
+    @Test
+    fun `a per-minute limit only rests the model for a moment`() {
+        geminiOutForTheMinute = setOf("gemini-3.6-flash")
+        dictation().run(wav, freeSettings)
+        val rest = quota.resting("gemini-3.6-flash")!!
+        assertFalse(rest.daily)
+        assertEquals(clock.plusSeconds(12), rest.until)
+
+        clock = clock.plusSeconds(13)
+        geminiOutForTheMinute = emptySet()
+        requests.clear()
+        dictation().run(wav, freeSettings)
+        assertEquals(listOf("/gemini/gemini-3.6-flash:generateContent"), paths())
+    }
+
+    @Test
+    fun `if every model is busy for the minute it says to wait`() {
+        geminiOutForTheMinute = setOf("gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite")
+        val error = assertFailsWith<DictationException> { dictation().run(wav, freeSettings) }
+        assertEquals("Gemini's free tier allows only so many requests a minute. Wait a minute, then try again.", error.message)
+    }
+
+    @Test
+    fun `without the model list it falls back to the flash-lite alias`() {
+        geminiModels = null
+        geminiOutOfQuota = setOf("gemini-3.6-flash")
+        val result = dictation().run(wav, freeSettings)
+
+        assertEquals(
+            listOf("/gemini/gemini-3.6-flash:generateContent", "/gemini?pageSize=1000", "/gemini/gemini-flash-lite-latest:generateContent"),
+            paths(),
+        )
+        assertFalse(bodyOf(2).has("generationConfig")) // the alias isn't a gemini-3 id
+        assertEquals("Yaar, mujhe kal report bhejni hai, so please remind me.", result.text)
+    }
+
+    @Test
+    fun `gemini 2_5 flash is asked not to think`() {
+        geminiModels = listOf("gemini-3.6-flash", "gemini-2.5-flash")
+        geminiOutOfQuota = setOf("gemini-3.6-flash")
+        dictation().run(wav, freeSettings)
+        assertEquals(0, bodyOf(2)["generationConfig"]["thinkingConfig"]["thinkingBudget"].asInt())
     }
 
     @Test

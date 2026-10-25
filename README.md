@@ -90,7 +90,7 @@ Android only lets an app draw a button over other apps and type into their text 
 
 **Nothing, with the default setup.** Gemini's free tier covers personal dictation, with two catches:
 
-- **Daily limits.** Google caps free requests per day, and the numbers change (reports range from about 20 a day to 1,500 for the newest Flash models, and about 500 for Flash-Lite). When the Flash model runs out, Murmur switches to Flash-Lite on its own. If both run out, it says so; the limits reset daily.
+- **Daily limits.** Google gives each Gemini model its own allowance of free requests per day and per minute, and changes the numbers from time to time (reports range from about 20 a day to 1,500 for the newest Flash models, and about 500 for Flash-Lite). One dictation is one request; a long recording is one request per 4 to 6 minutes. When a model's free requests run out, Murmur moves to the next Flash model your key can use (newer before older, then Flash-Lite), and remembers, so later dictations go straight there. The Murmur app's setup screen shows which models are used up and when they come back: midnight in California, which is noon or 1 pm in Pakistan. To see your exact limits, open [Google AI Studio](https://aistudio.google.com) with the account your key belongs to and look at its usage and rate limits.
 - **Privacy.** On the free tier, Google may use what you send to improve its products. If you'd rather it didn't, add billing to your Google AI Studio project; then you pay per use, roughly 0.2¢ per 30-second dictation (about $1.50 a month at 30 dictations a day).
 
 Claude cleanup, if you add it, is extra: about $0.20 a month with Claude Haiku 5.5, or about $7.50 with Claude Opus 5.5, at 30 dictations a day.

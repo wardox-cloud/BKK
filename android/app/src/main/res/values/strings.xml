@@ -42,6 +42,8 @@
     <string name="panel_cancel">Cancel</string>
     <string name="step_key">2. Add your free Gemini key (below)</string>
     <string name="step_key_button">Get a free key</string>
+    <string name="quota_used_up">Free requests used up for today: %1$s. Murmur is using other Gemini models in the meantime. They come back at %2$s.</string>
+    <string name="quota_per_day">%1$s (%2$d a day)</string>
     <string name="step_bubble">3. Turn on the floating mic</string>
     <string name="step_bubble_help">In Accessibility, open Murmur mic bubble and turn it on. If Android says it\'s a restricted setting, tap App info, then ⋮ (top right), then Allow restricted settings, and try again.</string>
     <string name="step_bubble_button">Open Accessibility</string>

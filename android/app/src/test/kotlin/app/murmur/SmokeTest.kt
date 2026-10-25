@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.os.Looper
 import android.view.inputmethod.EditorInfo
+import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -58,6 +59,19 @@ class SmokeTest {
         assertEquals("claude-opus-5-5", settings.claudeModel)
         assertEquals("roman", settings.language)
         assertEquals(listOf("Shmookh", "Axiom Talent"), settings.vocabulary)
+    }
+
+    @Test
+    fun `setup shows which models are out of free requests today`() {
+        val tomorrow = System.currentTimeMillis() + 86_400_000
+        Prefs(RuntimeEnvironment.getApplication()).edit {
+            putString("gemini_quota", """{"rests":{"gemini-3.6-flash":{"until":$tomorrow,"daily":true,"perDay":20}}}""")
+        }
+        val activity = Robolectric.buildActivity(SetupActivity::class.java).setup().get()
+
+        val status = activity.findViewById<TextView>(R.id.quota_status)
+        assertEquals(View.VISIBLE, status.visibility)
+        assertTrue(status.text.toString(), status.text.startsWith("Free requests used up for today: gemini-3.6-flash (20 a day)."))
     }
 
     @Test

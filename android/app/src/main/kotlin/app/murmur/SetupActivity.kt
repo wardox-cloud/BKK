@@ -145,6 +145,18 @@ class SetupActivity : Activity() {
         stepMic.text = getString(R.string.step_mic) + if (micAllowed) "  ✓" else ""
         stepKey.text = getString(R.string.step_key) + if (prefs.key(prefs.provider).isNotBlank()) "  ✓" else ""
         stepBubble.text = getString(R.string.step_bubble) + if (bubbleOn) "  ✓" else ""
+        showQuota()
+    }
+
+    /** Which models are out of free requests today, if any. */
+    private fun showQuota() {
+        val quota = prefs.geminiQuota
+        val usedUp = quota.rests().filter { it.daily }.map { rest ->
+            rest.perDay?.let { getString(R.string.quota_per_day, rest.model, it) } ?: rest.model
+        }
+        val status = findViewById<TextView>(R.id.quota_status)
+        status.visibility = if (usedUp.isEmpty()) View.GONE else View.VISIBLE
+        status.text = getString(R.string.quota_used_up, usedUp.joinToString(", "), quota.nextResetLocal())
     }
 
     private fun showProvider() {

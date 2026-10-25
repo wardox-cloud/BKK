@@ -53,6 +53,15 @@
             android:text="@string/step_key_button" />
 
         <TextView
+            android:id="@+id/quota_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textColor="@color/muted"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
+        <TextView
             android:id="@+id/step_bubble"
             style="@style/Murmur.Heading"
             android:layout_width="match_parent"

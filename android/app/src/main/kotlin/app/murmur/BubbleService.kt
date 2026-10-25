@@ -48,7 +48,7 @@ class BubbleService : AccessibilityService() {
 
     /** Settable so tests can point it at a fake server. */
     internal var dictation: Dictation
-        get() = dictationInstance ?: Dictation(prompts).also { dictationInstance = it }
+        get() = dictationInstance ?: Dictation(prompts, quota = prefs.geminiQuota).also { dictationInstance = it }
         set(value) {
             dictationInstance = value
         }

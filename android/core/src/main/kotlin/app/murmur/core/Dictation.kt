@@ -13,12 +13,14 @@ class Dictation(
     /** Base URLs by provider; tests point these at a local server. */
     private val baseUrls: Map<SttProvider, String> = SttProvider.entries.associateWith { it.baseUrl },
     anthropicBaseUrl: String? = null,
+    /** What Murmur has learned about Gemini's free allowances; the app keeps it on the phone. */
+    quota: GeminiQuota = GeminiQuota(),
 ) {
     enum class Stage { TRANSCRIBING, POLISHING, TRANSCRIBING_AND_POLISHING }
 
     data class Result(val text: String, val raw: String, val note: String? = null)
 
-    private val gemini = Gemini(http, baseUrls.getValue(SttProvider.GEMINI))
+    private val gemini = Gemini(http, baseUrls.getValue(SttProvider.GEMINI), quota)
     private val whisper = Whisper(http)
     private val claude = Claude(anthropicBaseUrl)
 

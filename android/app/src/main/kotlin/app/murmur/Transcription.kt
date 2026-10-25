@@ -98,6 +98,7 @@ object Transcription {
             Prompts.load(),
             // A few minutes of audio takes longer than a dictation.
             OkHttpClient.Builder().callTimeout(4, TimeUnit.MINUTES).build(),
+            quota = Prefs(context).geminiQuota,
         )
         try {
             val source = open(context, recording(context))

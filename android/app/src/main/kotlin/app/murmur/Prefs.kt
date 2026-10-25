@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import app.murmur.core.CleanupEngine
 import app.murmur.core.DictationSettings
+import app.murmur.core.GeminiQuota
 import app.murmur.core.SttProvider
 
 /** Settings, stored privately on this phone. */
@@ -40,6 +41,13 @@ class Prefs(context: Context) {
         prefs.getString("model_${provider.id}", null)?.takeIf { it.isNotBlank() } ?: provider.defaultModel
 
     fun edit(block: SharedPreferences.Editor.() -> Unit) = prefs.edit().apply(block).apply()
+
+    /** Which Gemini models have used up their free requests, shared by the mic, the keyboard and recordings. */
+    val geminiQuota
+        get() = GeminiQuota(object : GeminiQuota.Storage {
+            override fun read() = prefs.getString("gemini_quota", null)
+            override fun write(value: String) = edit { putString("gemini_quota", value) }
+        })
 
     fun dictationSettings() = DictationSettings(
         provider = provider,

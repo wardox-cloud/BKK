@@ -12,6 +12,7 @@ import android.widget.Button
 import android.widget.TextView
 import app.murmur.core.Dictation
 import app.murmur.core.DictationException
+import app.murmur.core.GeminiQuota
 import app.murmur.core.Prompts
 import app.murmur.core.SttProvider
 import okhttp3.mockwebserver.MockResponse
@@ -96,15 +97,19 @@ class TranscribeTest {
     fun `when the free quota runs out, Continue picks up where it stopped`() {
         Prefs(app).edit { putString("key_gemini", "AIza-test") }
         reply("Part one.")
-        // Both Gemini models are out of free requests.
-        repeat(2) { server.enqueue(MockResponse().setResponseCode(429).setBody("""{"error":{"message":"quota"}}""")) }
+        // The only model has used up its free requests for the day.
+        server.enqueue(
+            MockResponse().setResponseCode(429).setBody(
+                """{"error":{"code":429,"details":[{"violations":[{"quotaId":"GenerateRequestsPerDayPerProjectPerModel-FreeTier","quotaValue":"20"}]}]}}""",
+            ),
+        )
         fakeRecording(mutableListOf(), part(30), part(30))
 
         val activity = Robolectric.buildActivity(TranscribeActivity::class.java, shared()).setup().get()
         runService(nextService())
         waitFor { Transcription.state.phase == Transcription.Phase.STOPPED }
         assertEquals("Part one.", activity.findViewById<TextView>(R.id.transcribe_result).text.toString())
-        assertTrue(status(activity), status(activity).contains("free requests"))
+        assertTrue(status(activity), status(activity).contains("free Gemini requests"))
         val resume = activity.findViewById<Button>(R.id.transcribe_resume)
         assertEquals(View.VISIBLE, resume.visibility)
         assertEquals(app.getString(R.string.transcribe_continue), resume.text.toString())
@@ -118,7 +123,7 @@ class TranscribeTest {
         runService(next)
         waitFor { Transcription.state.phase == Transcription.Phase.DONE }
         assertEquals("Part one.\n\nPart two.", activity.findViewById<TextView>(R.id.transcribe_result).text.toString())
-        assertEquals(4, server.requestCount) // part one wasn't sent again
+        assertEquals(3, server.requestCount) // part one wasn't sent again
     }
 
     @Test
@@ -158,7 +163,13 @@ class TranscribeTest {
     /** Shares a fake recording made of [pieces], and points Murmur at the fake server. */
     private fun fakeRecording(opened: MutableList<File>, vararg pieces: ByteArray, beforePart: (Int) -> Unit = {}) {
         shadowOf(app.contentResolver).registerInputStream(RECORDING, ByteArrayInputStream("m4a bytes".toByteArray()))
-        Transcription.dictation = Dictation(Prompts.load(), baseUrls = SttProvider.entries.associateWith { server.url("/fake").toString() })
+        // One known model, so the fake server isn't asked for the list.
+        val quota = GeminiQuota().apply { rememberModels(listOf("gemini-3.6-flash")) }
+        Transcription.dictation = Dictation(
+            Prompts.load(),
+            baseUrls = SttProvider.entries.associateWith { server.url("/fake").toString() },
+            quota = quota,
+        )
         Transcription.open = { _, file ->
             opened += file
             assertEquals("m4a bytes", file.readText())
