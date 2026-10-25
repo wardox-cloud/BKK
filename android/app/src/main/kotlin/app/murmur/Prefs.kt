@@ -5,7 +5,10 @@ import android.content.SharedPreferences
 import app.murmur.core.CleanupEngine
 import app.murmur.core.DictationSettings
 import app.murmur.core.GeminiQuota
+import app.murmur.core.Prompts
 import app.murmur.core.SttProvider
+import app.murmur.core.Styles
+import org.json.JSONObject
 
 /** Settings, stored privately on this phone. */
 class Prefs(context: Context) {
@@ -35,6 +38,34 @@ class Prefs(context: Context) {
         get() = prefs.getString("style", null) ?: "clean"
         set(value) = edit { putString("style", value) }
 
+    /** Styles you wrote, one per line: "Name: what it should do". */
+    var customStyles: String
+        get() = prefs.getString("custom_styles", "").orEmpty()
+        set(value) = edit { putString("custom_styles", value) }
+
+    /** The style you picked in each app, by package name. */
+    val appStyles: Map<String, String>
+        get() = runCatching {
+            val saved = JSONObject(prefs.getString("app_styles", "{}").orEmpty())
+            saved.keys().asSequence().associateWith { saved.getString(it) }
+        }.getOrDefault(emptyMap())
+
+    fun setAppStyle(app: String?, style: String) {
+        if (app == null) {
+            this.style = style
+            return
+        }
+        val saved = JSONObject(appStyles).put(app, style)
+        edit { putString("app_styles", saved.toString()) }
+    }
+
+    fun clearAppStyles() = edit { remove("app_styles") }
+
+    /** With no internet, let the phone's own recognizer write English dictation. */
+    val offlineFallback get() = prefs.getBoolean("offline_fallback", true)
+
+    fun styles(prompts: Prompts) = Styles(prompts, customStyles)
+
     fun key(provider: SttProvider) = prefs.getString("key_${provider.id}", "").orEmpty()
 
     fun model(provider: SttProvider) =
@@ -48,6 +79,12 @@ class Prefs(context: Context) {
             override fun read() = prefs.getString("gemini_quota", null)
             override fun write(value: String) = edit { putString("gemini_quota", value) }
         })
+
+    /** Settings for dictating into [app]: its own style if you picked one there. */
+    fun dictationSettings(app: String?, prompts: Prompts): DictationSettings {
+        val chosen = styles(prompts).forApp(app, appStyles, style)
+        return dictationSettings().copy(style = chosen.id, styleInstruction = chosen.instruction)
+    }
 
     fun dictationSettings() = DictationSettings(
         provider = provider,

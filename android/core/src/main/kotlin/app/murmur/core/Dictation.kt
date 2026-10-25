@@ -31,7 +31,7 @@ class Dictation(
             val text = gemini.generate(
                 settings.sttKey,
                 settings.sttModel,
-                prompts.cleanupPrompt(settings.language, settings.style, settings.vocabulary, fromAudio = true),
+                prompts.cleanupPrompt(settings.language, settings.style, settings.vocabulary, fromAudio = true, styleInstruction = settings.styleInstruction),
                 listOf(Gemini.audioPart(wav), Gemini.textPart("Here is the recording.")),
             )
             if (text.isEmpty()) throw DictationException(NO_SPEECH)
@@ -48,7 +48,7 @@ class Dictation(
     fun polish(raw: String, settings: DictationSettings, onStage: (Stage) -> Unit = {}): Result {
         if (settings.style == "raw" || settings.cleanupKey.isBlank()) return Result(raw, raw)
         onStage(Stage.POLISHING)
-        val system = prompts.cleanupPrompt(settings.language, settings.style, settings.vocabulary)
+        val system = prompts.cleanupPrompt(settings.language, settings.style, settings.vocabulary, styleInstruction = settings.styleInstruction)
         val usesGemini = settings.cleanup == CleanupEngine.GEMINI
         return try {
             val text = if (usesGemini) {
@@ -64,6 +64,40 @@ class Dictation(
             Result(raw, raw, "Couldn't polish ($reason), so this is the raw transcript.")
         }
     }
+
+    /**
+     * Writes down one part of a meeting, with speaker labels. [speakers] and
+     * [tail] come from the parts before it. Meetings always use Gemini, which
+     * can tell voices apart; an empty result means nothing was said.
+     */
+    fun meetingPart(wav: ByteArray, settings: DictationSettings, part: Int, speakers: List<String>, tail: String): String =
+        gemini.generate(
+            requireGeminiKey(settings),
+            settings.geminiModel,
+            prompts.meetingInstruction(settings.language, settings.vocabulary, part, speakers, tail),
+            listOf(Gemini.audioPart(wav), Gemini.textPart("Here is part $part of the recording.")),
+        )
+
+    /** Notes for a whole meeting, written by Gemini: one request, however long the meeting. */
+    fun notes(transcript: String, settings: DictationSettings): String =
+        gemini.generate(
+            requireGeminiKey(settings),
+            settings.geminiModel,
+            prompts.notesPrompt(settings.vocabulary),
+            listOf(Gemini.textPart(Prompts.transcriptMessage(transcript))),
+        ).ifEmpty { throw DictationException("Gemini sent back no notes. Try again.") }
+
+    /** Applies a spoken instruction ("make this shorter") to [selected] text and returns the new text. */
+    fun command(wav: ByteArray, selected: String, settings: DictationSettings): String =
+        gemini.generate(
+            requireGeminiKey(settings),
+            settings.geminiModel,
+            prompts.commandPrompt(settings.vocabulary),
+            listOf(Gemini.audioPart(wav), Gemini.textPart(Prompts.selectedMessage(selected))),
+        ).ifEmpty { throw DictationException(NO_SPEECH) }
+
+    private fun requireGeminiKey(settings: DictationSettings) =
+        settings.geminiKey.ifBlank { throw DictationException("This needs a Gemini key. Add one in Murmur's settings.") }
 
     private fun transcribe(wav: ByteArray, settings: DictationSettings): String =
         if (settings.provider == SttProvider.GEMINI) {

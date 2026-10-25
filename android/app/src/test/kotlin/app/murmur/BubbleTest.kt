@@ -13,6 +13,7 @@ import app.murmur.core.Prompts
 import app.murmur.core.SttProvider
 import java.time.Duration
 import okhttp3.mockwebserver.MockResponse
+import org.junit.Assert.assertNull
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -45,12 +46,22 @@ class BubbleTest {
     }
 
     @After
-    fun tearDown() = server.shutdown()
+    fun tearDown() {
+        server.shutdown()
+        OfflineRecognizer.available = { false }
+    }
 
-    private fun textBox(text: String, cursor: Int, accept: (Int) -> Boolean = { true }) = AccessibilityNodeInfo().apply {
+    private fun textBox(
+        text: String,
+        cursor: Int,
+        selectionEnd: Int = cursor,
+        app: String? = null,
+        accept: (Int) -> Boolean = { true },
+    ) = AccessibilityNodeInfo().apply {
         isEditable = true
         this.text = text
-        setTextSelection(cursor, cursor)
+        packageName = app
+        setTextSelection(cursor, selectionEnd)
         shadowOf(this).setOnPerformActionListener { action, args ->
             performed += action to args
             accept(action)
@@ -99,7 +110,7 @@ class BubbleTest {
 
     @Test
     fun `apps that ignore set-text get a paste instead`() {
-        bubble.findTextBox = { textBox("Hi", 2) { it != AccessibilityNodeInfo.ACTION_SET_TEXT } }
+        bubble.findTextBox = { textBox("Hi", 2, accept = { it != AccessibilityNodeInfo.ACTION_SET_TEXT }) }
         bubble.process(ByteArray(32_000))
         waitUntil { performed.any { it.first == AccessibilityNodeInfo.ACTION_PASTE } }
 
@@ -114,5 +125,84 @@ class BubbleTest {
 
         assertEquals("yaar mujhe kal report bhejni hai", clipboardText())
         assertEquals("Copied. Long-press a text box to paste.", ShadowToast.getTextOfLatestToast())
+    }
+
+    private fun sentText() =
+        performed.first { it.first == AccessibilityNodeInfo.ACTION_SET_TEXT }.second!!
+            .getCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE).toString()
+
+    @Test
+    fun `speaking with text selected rewrites that text`() {
+        bubble.findTextBox = { textBox("Hi. Would it perhaps be possible to meet tomorrow?", 4, 50) }
+        bubble.captureTarget()
+        bubble.process(ByteArray(32_000))
+        waitUntil { performed.size >= 2 }
+
+        val request = server.takeRequest().body.readUtf8()
+        assertTrue(request.contains("Someone selected text in an app"))
+        assertTrue(request.contains("<selected>\\nWould it perhaps be possible to meet tomorrow?\\n</selected>"))
+        // The selection is replaced by what came back.
+        assertEquals("Hi. yaar mujhe kal report bhejni hai", sentText())
+    }
+
+    @Test
+    fun `each app gets its own style`() {
+        bubble.findTextBox = { textBox("", 0, app = "com.google.android.gm") }
+        bubble.captureTarget()
+        bubble.process(ByteArray(32_000))
+        waitUntil { performed.size >= 2 }
+        assertTrue(server.takeRequest().body.readUtf8().contains("Output an email body"))
+
+        Prefs(app).setAppStyle("com.google.android.gm", "notes")
+        server.enqueue(MockResponse().setBody("""{"candidates":[{"content":{"parts":[{"text":"- report"}]}}]}"""))
+        bubble.captureTarget()
+        bubble.process(ByteArray(32_000))
+        waitUntil { performed.size >= 4 }
+        assertTrue(server.takeRequest().body.readUtf8().contains("as \\\"- \\\" bullet points"))
+    }
+
+    @Test
+    fun `dictations are kept in history`() {
+        bubble.findTextBox = { textBox("", 0, app = "com.whatsapp") }
+        bubble.captureTarget()
+        bubble.process(ByteArray(32_000))
+        waitUntil { performed.size >= 2 }
+
+        val entry = Meetings.history(app).entries().single()
+        assertEquals("yaar mujhe kal report bhejni hai", entry.text)
+        assertEquals("com.whatsapp", entry.app)
+    }
+
+    @Test
+    fun `with no internet the phone's own recognizer writes it`() {
+        server.shutdown()
+        var heard: ByteArray? = null
+        OfflineRecognizer.available = { true }
+        OfflineRecognizer.recognize = { _, pcm, done ->
+            heard = pcm
+            done("see you at five")
+        }
+        bubble.findTextBox = { textBox("Hi", 2) }
+        bubble.captureTarget()
+        bubble.process(ByteArray(32_000))
+        waitUntil { performed.size >= 2 }
+
+        assertEquals(32_000, heard!!.size)
+        assertEquals("Hi see you at five", sentText())
+        assertEquals(app.getString(R.string.offline_note), ShadowToast.getTextOfLatestToast())
+    }
+
+    @Test
+    fun `with no internet and the fallback off, it says why`() {
+        server.shutdown()
+        OfflineRecognizer.available = { true }
+        Prefs(app).edit { putBoolean("offline_fallback", false) }
+        bubble.findTextBox = { textBox("Hi", 2) }
+        bubble.captureTarget()
+        bubble.process(ByteArray(32_000))
+        waitUntil { ShadowToast.getTextOfLatestToast() != null }
+
+        assertEquals("Couldn't reach Gemini. Check your connection, then try again.", ShadowToast.getTextOfLatestToast())
+        assertNull(performed.firstOrNull())
     }
 }

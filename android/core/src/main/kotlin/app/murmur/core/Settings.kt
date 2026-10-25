@@ -41,10 +41,15 @@ data class DictationSettings(
     val language: String = "roman",
     val style: String = "clean",
     val vocabulary: List<String> = emptyList(),
+    /** The wording of a style you wrote yourself; null for the built-in ones. */
+    val styleInstruction: String? = null,
 ) {
     val cleanupKey get() = if (cleanup == CleanupEngine.GEMINI) geminiKey else anthropicKey
     val oneStep get() = provider == SttProvider.GEMINI && cleanup == CleanupEngine.GEMINI && style != "raw"
 }
 
 /** An error worth showing to the person dictating, already in plain words. */
-class DictationException(message: String) : Exception(message)
+open class DictationException(message: String) : Exception(message)
+
+/** The phone couldn't reach the service at all: no internet, most likely. */
+class ConnectionException(message: String) : DictationException(message)

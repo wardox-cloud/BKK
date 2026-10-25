@@ -53,6 +53,8 @@ class SetupActivity : Activity() {
     private lateinit var claudeModel: Spinner
     private lateinit var vocabulary: EditText
     private lateinit var switchBack: CheckBox
+    private lateinit var customStyles: EditText
+    private lateinit var offlineFallback: CheckBox
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -75,6 +77,8 @@ class SetupActivity : Activity() {
         claudeModel = findViewById(R.id.claude_model)
         vocabulary = findViewById(R.id.vocabulary)
         switchBack = findViewById(R.id.switch_back)
+        customStyles = findViewById(R.id.custom_styles)
+        offlineFallback = findViewById(R.id.offline_fallback)
 
         language.adapter = adapter(prompts.languages.values.toList())
         provider.adapter = adapter(providers.map { it.label })
@@ -94,6 +98,8 @@ class SetupActivity : Activity() {
         vocabulary.setText(prefs.vocabulary)
         switchBack.isChecked = prefs.switchBack
         bubbleAlways.isChecked = prefs.bubbleAlways
+        customStyles.setText(prefs.customStyles)
+        offlineFallback.isChecked = prefs.offlineFallback
         showProvider()
 
         provider.onItemSelectedListener = onSelected {
@@ -122,6 +128,10 @@ class SetupActivity : Activity() {
             (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker()
         }
         findViewById<Button>(R.id.save).setOnClickListener { save() }
+        findViewById<Button>(R.id.reset_app_styles).setOnClickListener {
+            prefs.clearAppStyles()
+            showAppStyles()
+        }
     }
 
     override fun onResume() {
@@ -146,6 +156,16 @@ class SetupActivity : Activity() {
         stepKey.text = getString(R.string.step_key) + if (prefs.key(prefs.provider).isNotBlank()) "  ✓" else ""
         stepBubble.text = getString(R.string.step_bubble) + if (bubbleOn) "  ✓" else ""
         showQuota()
+        showAppStyles()
+    }
+
+    private fun showAppStyles() {
+        val styles = prefs.styles(prompts)
+        val picked = prefs.appStyles.entries.joinToString(", ") { (app, style) ->
+            HistoryActivity.appName(this, app) + " → " + (styles.find(style)?.label ?: style)
+        }
+        findViewById<TextView>(R.id.app_styles).text =
+            if (picked.isEmpty()) getString(R.string.app_styles_none) else getString(R.string.app_styles, picked)
     }
 
     /** Which models are out of free requests today, if any. */
@@ -157,6 +177,12 @@ class SetupActivity : Activity() {
         val status = findViewById<TextView>(R.id.quota_status)
         status.visibility = if (usedUp.isEmpty()) View.GONE else View.VISIBLE
         status.text = getString(R.string.quota_used_up, usedUp.joinToString(", "), quota.nextResetLocal())
+        val usage = quota.usage()
+        findViewById<TextView>(R.id.usage_today).text = if (usage.isEmpty()) {
+            getString(R.string.usage_none, quota.nextResetLocal())
+        } else {
+            getString(R.string.usage_today, usage.values.sum(), usage.entries.joinToString(", ") { "${it.key} ${it.value}" }, quota.nextResetLocal())
+        }
     }
 
     private fun showProvider() {
@@ -200,6 +226,8 @@ class SetupActivity : Activity() {
             putString("vocabulary", vocabulary.text.toString())
             putBoolean("switch_back", switchBack.isChecked)
             putBoolean("bubble_always", bubbleAlways.isChecked)
+            putString("custom_styles", customStyles.text.toString())
+            putBoolean("offline_fallback", offlineFallback.isChecked)
         }
         Toast.makeText(this, R.string.saved, Toast.LENGTH_SHORT).show()
         showSteps()

@@ -39,20 +39,67 @@ class Prompts(json: String) {
         return parts.joinToString(" ")
     }
 
-    /** System prompt for cleanup. With [fromAudio] the model gets the recording and does both steps. */
-    fun cleanupPrompt(language: String, style: String, vocabulary: List<String>, fromAudio: Boolean = false): String {
+    /**
+     * System prompt for cleanup. With [fromAudio] the model gets the recording and does both steps.
+     * [styleInstruction] replaces the style's own wording, for styles you write yourself.
+     */
+    fun cleanupPrompt(
+        language: String,
+        style: String,
+        vocabulary: List<String>,
+        fromAudio: Boolean = false,
+        styleInstruction: String? = null,
+    ): String {
         val cleanup = root["cleanup"]
         val terms = vocabulary.joinToString(", ")
         val parts = mutableListOf(
             lines(cleanup["base"]),
             lines(cleanup["accent"]),
             root["languages"][language]["cleanup"].asText(),
-            root["styles"][style]["cleanup"]?.asText().orEmpty(),
+            styleInstruction ?: root["styles"][style]?.get("cleanup")?.asText().orEmpty(),
         )
         if (terms.isNotEmpty()) parts += fill(cleanup["vocabulary"].asText(), mapOf("terms" to terms))
         if (fromAudio) parts += fill(cleanup["oneStep"].asText(), mapOf("speaker" to speaker))
         parts += cleanup["finish"].asText()
         return parts.joinToString("\n\n")
+    }
+
+    /**
+     * For one part of a meeting recording. [speakers] and [tail] come from the
+     * parts before it, so names and speaker labels carry on.
+     */
+    fun meetingInstruction(language: String, vocabulary: List<String>, part: Int, speakers: List<String>, tail: String): String {
+        val meeting = root["meeting"]
+        val context = if (tail.isBlank()) "" else fill(
+            meeting["context"].asText(),
+            mapOf("speakers" to speakers.joinToString(", ").ifEmpty { "not yet known" }, "tail" to tail.trim()),
+        )
+        return fill(
+            lines(meeting["transcribe"]),
+            mapOf(
+                "part" to "$part",
+                "speaker" to speaker,
+                "language" to root["languages"][language]["cleanup"].asText(),
+                "vocabulary" to vocabularyLine(vocabulary),
+                "context" to context,
+            ),
+        ).dropBlankLines()
+    }
+
+    /** System prompt for meeting notes; the transcript goes in [transcriptMessage]. */
+    fun notesPrompt(vocabulary: List<String>): String =
+        fill(lines(root["meeting"]["notes"]), mapOf("speaker" to speaker, "vocabulary" to vocabularyLine(vocabulary)))
+            .replace(Regex("\n{3,}"), "\n\n")
+            .trim()
+
+    /** For a spoken instruction about selected text; the text goes in [selectedMessage]. */
+    fun commandPrompt(vocabulary: List<String>): String =
+        fill(lines(root["command"]["instruction"]), mapOf("speaker" to speaker, "vocabulary" to vocabularyLine(vocabulary)))
+            .dropBlankLines()
+
+    private fun vocabularyLine(vocabulary: List<String>): String {
+        val terms = vocabulary.joinToString(", ")
+        return if (terms.isEmpty()) "" else fill(root["cleanup"]["vocabulary"].asText(), mapOf("terms" to terms))
     }
 
     companion object {
@@ -62,6 +109,10 @@ class Prompts(json: String) {
         }
 
         fun transcriptMessage(raw: String) = "<transcript>\n$raw\n</transcript>"
+
+        fun selectedMessage(text: String) = "<selected>\n$text\n</selected>"
+
+        private fun String.dropBlankLines() = split("\n").filter { it.isNotBlank() }.joinToString("\n")
 
         private val placeholder = Regex("""\{(\w+)\}""")
 

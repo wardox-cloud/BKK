@@ -24,8 +24,10 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.Toast
+import app.murmur.core.ConnectionException
 import app.murmur.core.Dictation
 import app.murmur.core.DictationException
+import app.murmur.core.HistoryStore
 import app.murmur.core.Insertion
 import app.murmur.core.Prompts
 import app.murmur.core.Wav
@@ -65,6 +67,14 @@ class BubbleService : AccessibilityService() {
 
     private var state = State.IDLE
     private var typing = false
+
+    /** The app you're dictating into, for its style and for history. */
+    private var targetApp: String? = null
+
+    /** Text you'd selected when you tapped the mic: what you say is an instruction about it. */
+    private var selection: String? = null
+
+    private val history by lazy { Meetings.history(this) }
 
     internal val bubbleView: View? get() = bubble
 
@@ -164,6 +174,12 @@ class BubbleService : AccessibilityService() {
         private var startX = 0
         private var startY = 0
         private var dragging = false
+        private var held = false
+        private val longPress = Runnable {
+            held = true
+            bubble?.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            openStylePicker()
+        }
 
         override fun onTouch(view: View, event: MotionEvent): Boolean {
             when (event.actionMasked) {
@@ -173,18 +189,27 @@ class BubbleService : AccessibilityService() {
                     startX = params.x
                     startY = params.y
                     dragging = false
+                    held = false
+                    // Holding the bubble picks the style for the app you're in.
+                    if (state == State.IDLE) view.postDelayed(longPress, ViewConfiguration.getLongPressTimeout().toLong())
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val dx = event.rawX - downX
                     val dy = event.rawY - downY
-                    if (!dragging && hypot(dx, dy) > slop) dragging = true
+                    if (!dragging && hypot(dx, dy) > slop) {
+                        dragging = true
+                        view.removeCallbacks(longPress)
+                    }
                     if (dragging) {
                         params.x = startX + dx.toInt()
                         params.y = startY + dy.toInt()
                         windows?.updateViewLayout(view, params)
                     }
                 }
+                MotionEvent.ACTION_CANCEL -> view.removeCallbacks(longPress)
                 MotionEvent.ACTION_UP -> {
+                    view.removeCallbacks(longPress)
+                    if (held) return true
                     if (dragging) {
                         val width = resources.displayMetrics.widthPixels
                         params.x = if (params.x + view.width / 2 < width / 2) dp(8) else width - view.width - dp(8)
@@ -243,6 +268,7 @@ class BubbleService : AccessibilityService() {
             startActivity(Intent(this, SetupActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             return
         }
+        captureTarget()
         if (prefs.micPanel) {
             openPanel()
             return
@@ -295,12 +321,20 @@ class BubbleService : AccessibilityService() {
         }
         state = State.WORKING
         render()
-        val settings = prefs.dictationSettings()
+        val settings = prefs.dictationSettings(targetApp, prompts)
         val wav = Wav.encode(pcm)
+        val command = selection
         worker.execute {
             try {
-                val result = dictation.run(wav, settings)
-                main.post { deliver(result.text, result.note) }
+                if (command != null) {
+                    val text = dictation.command(wav, command, settings)
+                    main.post { deliver(text, null) }
+                } else {
+                    val result = dictation.run(wav, settings)
+                    main.post { deliver(result.text, result.note) }
+                }
+            } catch (e: ConnectionException) {
+                main.post { offline(pcm, e.message.orEmpty(), command == null) }
             } catch (e: Exception) {
                 val message = (e as? DictationException)?.message ?: "Something went wrong (${e.message})."
                 main.post {
@@ -312,6 +346,40 @@ class BubbleService : AccessibilityService() {
         }
     }
 
+    /** No internet: the phone's own recognizer can still write plain English dictation. */
+    private fun offline(pcm: ByteArray, problem: String, dictating: Boolean) {
+        if (!dictating || !prefs.offlineFallback) return failed(problem)
+        OfflineRecognizer.transcribe(this, pcm) { text ->
+            if (text == null) failed(problem) else deliver(text, getString(R.string.offline_note))
+        }
+    }
+
+    private fun failed(message: String) {
+        state = State.IDLE
+        render()
+        toast(message)
+    }
+
+    private fun openStylePicker() {
+        startActivity(StylePickerActivity.intent(this, focusedTextBox()?.packageName?.toString()))
+    }
+
+    /** Notes which app you're in and what text you'd selected, before you start talking. */
+    internal fun captureTarget() {
+        val box = focusedTextBox()
+        targetApp = box?.packageName?.toString()
+        selection = box?.let { selectedText(it) }
+    }
+
+    /** The selected text in [box], if any. */
+    private fun selectedText(box: AccessibilityNodeInfo): String? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && box.isShowingHintText) return null
+        val text = box.text?.toString() ?: return null
+        val start = minOf(box.textSelectionStart, box.textSelectionEnd)
+        val end = maxOf(box.textSelectionStart, box.textSelectionEnd)
+        return if (start in 0 until end && end <= text.length) text.substring(start, end).takeIf { it.isNotBlank() } else null
+    }
+
     private fun deliver(text: String, note: String?, attempt: Int = 0) {
         val box = focusedTextBox()
         // After the mic panel closes, the text box takes a moment to get focus back.
@@ -321,6 +389,7 @@ class BubbleService : AccessibilityService() {
         }
         val inserted = box != null && insertInto(box, text)
         if (!inserted) copyToClipboard(text)
+        history.add(HistoryStore.Entry(System.currentTimeMillis(), text, targetApp))
         state = State.IDLE
         render()
         val message = note ?: if (inserted) null else "Copied. Long-press a text box to paste."

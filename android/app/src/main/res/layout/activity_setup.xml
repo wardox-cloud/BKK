@@ -62,6 +62,14 @@
             android:visibility="gone" />
 
         <TextView
+            android:id="@+id/usage_today"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textColor="@color/muted"
+            android:textSize="14sp" />
+
+        <TextView
             android:id="@+id/step_bubble"
             style="@style/Murmur.Heading"
             android:layout_width="match_parent"
@@ -235,6 +243,50 @@
             android:importantForAutofill="no"
             android:inputType="textMultiLine"
             android:minLines="3" />
+
+        <TextView
+            style="@style/Murmur.Heading"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/styles_heading" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/styles_help"
+            android:textColor="@color/muted"
+            android:textSize="14sp" />
+
+        <EditText
+            android:id="@+id/custom_styles"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="top"
+            android:hint="@string/styles_hint"
+            android:importantForAutofill="no"
+            android:inputType="textMultiLine|textCapSentences"
+            android:minLines="3" />
+
+        <TextView
+            android:id="@+id/app_styles"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="@color/muted"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/reset_app_styles"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/reset_app_styles" />
+
+        <CheckBox
+            android:id="@+id/offline_fallback"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/offline_fallback" />
 
         <CheckBox
             android:id="@+id/bubble_always"

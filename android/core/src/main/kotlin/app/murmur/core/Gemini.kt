@@ -23,7 +23,10 @@ class Gemini(
         var rest: GeminiQuota.Rest? = null
         for (candidate in candidates(apiKey, model)) {
             val (code, body) = call(apiKey, candidate, system, parts)
-            if (code in 200..299) return text(body)
+            if (code in 200..299) {
+                quota.used(candidate)
+                return text(body)
+            }
             status = code
             reply = body
             when {
@@ -116,7 +119,7 @@ class Gemini(
         val (status, text) = try {
             http.newCall(request).execute().use { it.code to it.body?.string().orEmpty() }
         } catch (e: IOException) {
-            throw DictationException("Couldn't reach Gemini. Check your connection, then try again.")
+            throw ConnectionException("Couldn't reach Gemini. Check your connection, then try again.")
         }
         return status to runCatching { json.readTree(text) }.getOrNull()
     }

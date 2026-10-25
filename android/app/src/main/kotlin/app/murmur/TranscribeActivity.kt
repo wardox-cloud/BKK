@@ -1,169 +1,82 @@
 package app.murmur
 
-import android.Manifest
 import android.app.Activity
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.view.View
-import android.widget.Button
-import android.widget.TextView
-import app.murmur.Transcription.Phase
-import java.util.concurrent.Executors
+import android.provider.OpenableColumns
+import android.widget.Toast
+import app.murmur.core.MeetingStore.Status
+import app.murmur.core.SttProvider
+import java.io.File
+import java.io.InputStream
 
 /**
- * Transcribes a recording shared from another app, such as Voice Recorder or a
- * WhatsApp voice note, with the same settings as the mic. Long recordings go
- * a few minutes at a time in [TranscribeService], so you can leave this screen.
+ * Takes a recording shared from another app, such as Voice Recorder or a
+ * WhatsApp voice note, and adds it to your meetings, written down and with
+ * notes like one recorded in Murmur.
  */
 class TranscribeActivity : Activity() {
-    private lateinit var status: TextView
-    private lateinit var result: TextView
-    private lateinit var progress: View
-    private lateinit var copy: Button
-    private lateinit var share: Button
-    private lateinit var stop: Button
-    private lateinit var resume: Button
-    private val worker = Executors.newSingleThreadExecutor()
-
-    /** A message about this screen rather than the transcription, such as a missing key. */
-    private var note: String? = null
-    private var copied: String? = null
-    private val listener: (Transcription.State) -> Unit = {
-        note = null
-        render(it)
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_transcribe)
-        status = findViewById(R.id.transcribe_status)
-        result = findViewById(R.id.transcribe_result)
-        progress = findViewById(R.id.transcribe_progress)
-        copy = findViewById(R.id.transcribe_copy)
-        share = findViewById(R.id.transcribe_share)
-        stop = findViewById(R.id.transcribe_stop)
-        resume = findViewById(R.id.transcribe_resume)
-        copy.setOnClickListener { copyToClipboard(result.text.toString()) }
-        share.setOnClickListener {
-            val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, result.text.toString())
-            startActivity(Intent.createChooser(send, null))
-        }
-        stop.setOnClickListener { Transcription.cancel() }
-        resume.setOnClickListener {
-            Transcription.proceed()
-            startService(resume = true)
-        }
-
-        Transcription.restore(this)
-        // What's already on screen was copied when it finished.
-        copied = Transcription.state.text.takeIf { Transcription.state.phase == Phase.DONE }
-        handle(intent)
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        handle(intent)
-    }
-
-    override fun onStart() {
-        super.onStart()
-        Transcription.listen(listener)
-        render(Transcription.state)
-    }
-
-    override fun onStop() {
-        Transcription.unlisten(listener)
-        super.onStop()
-    }
-
-    override fun onDestroy() {
-        worker.shutdown()
-        super.onDestroy()
-    }
-
-    private fun handle(intent: Intent) {
         val uri = sharedUri(intent)
-        val prefs = Prefs(this)
-        note = when {
-            // Opened from the notification: show how it's going.
-            uri == null -> null
-            prefs.key(prefs.provider).isBlank() -> getString(R.string.transcribe_no_key)
-            Transcription.state.phase == Phase.WORKING -> getString(R.string.transcribe_busy)
-            else -> {
-                start(uri)
-                null
+        when {
+            uri == null -> Toast.makeText(this, R.string.transcribe_nothing, Toast.LENGTH_LONG).show()
+            Prefs(this).key(SttProvider.GEMINI).isBlank() -> {
+                Toast.makeText(this, R.string.transcribe_no_key, Toast.LENGTH_LONG).show()
+                startActivity(Intent(this, SetupActivity::class.java))
             }
+            else -> import(uri)
         }
-        render(Transcription.state)
+        finish()
     }
 
-    private fun start(uri: Uri) {
-        Transcription.begin()
-        copied = null
-        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), NOTIFICATIONS_REQUEST)
-        }
-        // Copy it first: the app that shared it may take back access when this screen closes.
-        worker.execute {
-            try {
-                val input = contentResolver.openInputStream(uri) ?: throw IllegalStateException("nothing to read")
-                input.use { Transcription.recording(this).outputStream().use { output -> it.copyTo(output) } }
-                runOnUiThread { startService(resume = false) }
-            } catch (e: Exception) {
-                Transcription.fail("Couldn't open that file (${e.message}).")
-            }
-        }
-    }
-
-    private fun startService(resume: Boolean) {
-        try {
-            startForegroundService(Intent(this, TranscribeService::class.java).putExtra(TranscribeService.EXTRA_RESUME, resume))
+    private fun import(uri: Uri) {
+        // Open it now: the app that shared it may take back access once this screen closes.
+        val input = try {
+            contentResolver.openInputStream(uri) ?: error("nothing to read")
         } catch (e: Exception) {
-            // Android only lets it start while Murmur is on screen.
-            Transcription.fail(getString(R.string.transcribe_not_started))
+            Toast.makeText(this, getString(R.string.transcribe_cant_open, e.message), Toast.LENGTH_LONG).show()
+            return
         }
-    }
-
-    private fun render(state: Transcription.State) {
-        val working = state.phase == Phase.WORKING
-        result.text = state.text
-        progress.visibility = if (working) View.VISIBLE else View.GONE
-        copy.isEnabled = state.text.isNotBlank()
-        share.isEnabled = state.text.isNotBlank()
-        stop.visibility = if (working) View.VISIBLE else View.GONE
-        val canResume = state.phase == Phase.STOPPED && Transcription.recording(this).exists()
-        resume.visibility = if (canResume) View.VISIBLE else View.GONE
-        resume.setText(if (state.partsDone > 0) R.string.transcribe_continue else R.string.transcribe_retry)
-        if (state.phase == Phase.DONE && copied != state.text) {
-            copyToClipboard(state.text)
-            copied = state.text
-        }
-        status.text = note ?: when (state.phase) {
-            Phase.IDLE -> getString(R.string.transcribe_nothing)
-            Phase.WORKING -> when {
-                state.totalMs > 0 && state.doneMs > 0 -> getString(
-                    R.string.transcribe_working,
-                    Transcription.clock(state.doneMs),
-                    Transcription.clock(state.totalMs),
-                )
-                state.totalMs > 0 -> getString(R.string.transcribe_starting, Transcription.clock(state.totalMs))
-                else -> getString(R.string.transcribe_reading)
+        val store = Meetings.store(this)
+        val meeting = store.create(audio = "audio." + extension(uri), needsSplitting = true)
+        nameFor(uri)?.let { name -> store.update(meeting.id) { it.copy(title = name) } }
+        startActivity(MeetingActivity.intent(this, meeting.id))
+        val app = applicationContext
+        Thread {
+            try {
+                copy(input, File(store.folder(meeting.id), meeting.audio!!))
+                MeetingService.process(app, meeting.id)
+            } catch (e: Exception) {
+                store.update(meeting.id) { it.copy(status = Status.WAITING, message = app.getString(R.string.transcribe_cant_open, e.message)) }
+                Meetings.changed()
             }
-            Phase.DONE -> getString(R.string.transcribe_done)
-            Phase.STOPPED -> listOfNotNull(state.message, getString(R.string.transcribe_so_far).takeIf { state.text.isNotBlank() })
-                .joinToString(" ")
-        }
+        }.start()
     }
 
-    private fun copyToClipboard(text: String) {
-        (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("Murmur", text))
+    private fun copy(input: InputStream, file: File) {
+        input.use { source -> file.outputStream().use { source.copyTo(it) } }
     }
+
+    /** The shared file's name without its extension, as a starting title. */
+    private fun nameFor(uri: Uri): String? = displayName(uri)?.substringBeforeLast('.')?.takeIf { it.isNotBlank() }
+
+    private fun extension(uri: Uri): String =
+        displayName(uri)?.substringAfterLast('.', "")?.lowercase()?.takeIf { it.length in 2..4 && it.all(Char::isLetterOrDigit) }
+            ?: when (contentResolver.getType(uri)) {
+                "audio/ogg", "application/ogg", "audio/opus" -> "ogg"
+                "audio/mpeg" -> "mp3"
+                "audio/wav", "audio/x-wav" -> "wav"
+                else -> "m4a"
+            }
+
+    private fun displayName(uri: Uri): String? = runCatching {
+        contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0) else null
+        }
+    }.getOrNull()
 
     private fun sharedUri(intent: Intent): Uri? {
         if (intent.action != Intent.ACTION_SEND) return null
@@ -174,9 +87,5 @@ class TranscribeActivity : Activity() {
             intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
         }
         return stream ?: intent.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.uri
-    }
-
-    private companion object {
-        const val NOTIFICATIONS_REQUEST = 1
     }
 }

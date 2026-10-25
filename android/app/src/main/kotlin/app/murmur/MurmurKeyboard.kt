@@ -22,8 +22,10 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
+import app.murmur.core.ConnectionException
 import app.murmur.core.Dictation
 import app.murmur.core.DictationException
+import app.murmur.core.HistoryStore
 import app.murmur.core.Insertion
 import app.murmur.core.Prompts
 import app.murmur.core.Wav
@@ -61,6 +63,14 @@ class MurmurKeyboard : InputMethodService() {
     /** The last dictation typed in, so a style tap can rewrite it in place. */
     private var last: Dictation.Result? = null
     private var lastInserted: String? = null
+
+    /** The app you're typing in, for its style and for history. */
+    private var app: String? = null
+
+    /** Text you'd selected when you tapped the mic: what you say is an instruction about it. */
+    private var selection: String? = null
+
+    private val history by lazy { Meetings.history(this) }
 
     private lateinit var status: TextView
     private lateinit var styles: LinearLayout
@@ -138,6 +148,7 @@ class MurmurKeyboard : InputMethodService() {
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
+        app = info?.packageName
         renderStyles()
         render()
         if (state == State.IDLE) showReadiness()
@@ -208,6 +219,7 @@ class MurmurKeyboard : InputMethodService() {
             setStatus("Couldn't start the microphone: ${e.message}", error = true)
             return
         }
+        selection = currentInputConnection?.getSelectedText(0)?.toString()?.takeIf { it.isNotBlank() }
         state = State.RECORDING
         recordingStartedAt = SystemClock.elapsedRealtime()
         render()
@@ -238,11 +250,17 @@ class MurmurKeyboard : InputMethodService() {
     internal fun process(wav: ByteArray) {
         state = State.WORKING
         render()
-        val settings = prefs.dictationSettings()
+        val settings = prefs.dictationSettings(app, prompts)
         val target = currentField()
+        val command = selection
         worker.execute {
             try {
-                val result = dictation.run(wav, settings) { stage -> main.post { setStatus(describe(stage)) } }
+                val result = if (command != null) {
+                    main.post { setStatus("Rewriting the selected text…") }
+                    dictation.command(wav, command, settings).let { Dictation.Result(it, raw = command) }
+                } else {
+                    dictation.run(wav, settings) { stage -> main.post { setStatus(describe(stage)) } }
+                }
                 main.post {
                     failedAudio = null
                     if (currentField() != target || currentInputConnection == null) {
@@ -254,9 +272,13 @@ class MurmurKeyboard : InputMethodService() {
                         return@post
                     }
                     insert(result.text)
-                    last = result
+                    // A rewrite of selected text isn't a dictation a style tap should redo.
+                    last = if (command == null) result else null
+                    history.add(HistoryStore.Entry(System.currentTimeMillis(), result.text, app))
                     finish(result.note)
                 }
+            } catch (e: ConnectionException) {
+                main.post { offline(wav, e.message.orEmpty(), target, dictating = command == null) }
             } catch (e: Exception) {
                 val message = (e as? DictationException)?.message ?: "Something went wrong (${e.message})."
                 main.post {
@@ -267,6 +289,37 @@ class MurmurKeyboard : InputMethodService() {
                 }
             }
         }
+    }
+
+    /** No internet: the phone's own recognizer can still write plain English dictation. */
+    private fun offline(wav: ByteArray, problem: String, target: Pair<String, Int>?, dictating: Boolean) {
+        if (!dictating || !prefs.offlineFallback) return failed(wav, problem)
+        setStatus("No internet, so using the phone's own recognizer…")
+        OfflineRecognizer.transcribe(this, wav.copyOfRange(44, wav.size)) { text ->
+            when {
+                text == null -> failed(wav, problem)
+                currentField() != target || currentInputConnection == null -> {
+                    copyToClipboard(text)
+                    state = State.IDLE
+                    render()
+                    setStatus("The text box changed, so it's copied instead. Long-press to paste.")
+                }
+                else -> {
+                    failedAudio = null
+                    insert(text)
+                    last = null
+                    history.add(HistoryStore.Entry(System.currentTimeMillis(), text, app))
+                    finish(getString(R.string.offline_note))
+                }
+            }
+        }
+    }
+
+    private fun failed(wav: ByteArray, message: String) {
+        failedAudio = wav
+        state = State.IDLE
+        render()
+        setStatus("$message Tap here to try again.", error = true)
     }
 
     private fun finish(note: String?) {
@@ -287,8 +340,10 @@ class MurmurKeyboard : InputMethodService() {
     private fun renderStyles() {
         if (!::styles.isInitialized) return
         styles.removeAllViews()
-        for ((id, label) in prompts.styles) {
-            val selected = id == prefs.style
+        val all = prefs.styles(prompts)
+        val current = all.forApp(app, prefs.appStyles, prefs.style).id
+        for ((id, label) in all.all) {
+            val selected = id == current
             val chip = TextView(this).apply {
                 text = label
                 textSize = 14f
@@ -307,9 +362,9 @@ class MurmurKeyboard : InputMethodService() {
         }
     }
 
-    /** Picks the style for the next dictation, and rewrites the last one in place if it's still there. */
+    /** Picks the style for this app's next dictation, and rewrites the last one in place if it's still there. */
     private fun onStyle(id: String) {
-        prefs.style = id
+        prefs.setAppStyle(app, id)
         renderStyles()
         val previous = last ?: return
         val inserted = lastInserted ?: return
@@ -317,7 +372,7 @@ class MurmurKeyboard : InputMethodService() {
 
         state = State.WORKING
         render()
-        val settings = prefs.dictationSettings()
+        val settings = prefs.dictationSettings(app, prompts)
         worker.execute {
             val result = dictation.polish(previous.raw, settings) { stage -> main.post { setStatus(describe(stage)) } }
             main.post {

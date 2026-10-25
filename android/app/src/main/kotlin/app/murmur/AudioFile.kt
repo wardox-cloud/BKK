@@ -11,8 +11,17 @@ import app.murmur.core.Resampler
 import app.murmur.core.Splitter
 import java.nio.ByteOrder
 
+/** Audio to write down, a few minutes at a time. */
+interface AudioSource {
+    /** How long the recording is, or 0 if the file doesn't say. */
+    val durationMs: Long
+
+    /** Calls [onPart] with each part of a few minutes, as 16 kHz mono PCM. */
+    fun parts(onPart: (ByteArray) -> Unit)
+}
+
 /** A recording the phone can play (m4a, mp3, ogg, opus, wav...), decoded a few minutes at a time. */
-class AudioFile(private val context: Context, private val uri: Uri) : Transcription.Source {
+class AudioFile(private val context: Context, private val uri: Uri) : AudioSource {
     override val durationMs: Long by lazy {
         val extractor = MediaExtractor()
         try {

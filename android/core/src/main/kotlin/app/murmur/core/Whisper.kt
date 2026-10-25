@@ -29,7 +29,7 @@ class Whisper(private val http: OkHttpClient) {
         val (status, text) = try {
             http.newCall(request).execute().use { it.code to it.body?.string().orEmpty() }
         } catch (e: IOException) {
-            throw DictationException("Couldn't reach $label. Check your connection, then try again.")
+            throw ConnectionException("Couldn't reach $label. Check your connection, then try again.")
         }
         val reply = runCatching { json.readTree(text) }.getOrNull()
         if (status == 401) throw DictationException("$label rejected the API key. Check it in Murmur's settings.")

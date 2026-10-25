@@ -101,6 +101,29 @@ class GeminiQuota(
         storage.write(json.writeValueAsString(saved))
     }
 
+    /** Counts a request that [model] answered, for today's tally. */
+    @Synchronized
+    fun used(model: String) {
+        val saved = load()
+        if (saved.path("usageDay").asText() != today().toString()) {
+            saved.put("usageDay", today().toString())
+            saved.putObject("usage")
+        }
+        val usage = saved.withObjectProperty("usage")
+        usage.put(model, usage.path(model).asInt(0) + 1)
+        storage.write(json.writeValueAsString(saved))
+    }
+
+    /** Requests each model answered today (the day as Google counts it), most used first. */
+    @Synchronized
+    fun usage(): Map<String, Int> {
+        val saved = load()
+        if (saved.path("usageDay").asText() != today().toString()) return emptyMap()
+        val usage = saved.path("usage")
+        return usage.fieldNames().asSequence().associateWith { usage.path(it).asInt() }
+            .entries.sortedByDescending { it.value }.associate { it.key to it.value }
+    }
+
     private fun today(): LocalDate = now().atZone(PACIFIC).toLocalDate()
 
     private fun load(): ObjectNode =
