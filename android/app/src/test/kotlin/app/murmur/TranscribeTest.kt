@@ -73,8 +73,8 @@ class TranscribeTest {
         reply("Acha suno, woh proposal abhi tak finalize nahi hua.")
         reply("I'll follow up with Sarah tomorrow.")
         val opened = mutableListOf<File>()
-        // Two five-minute parts, then a scrap too short to send.
-        fakeRecording(opened, part(300), part(300), part(0.2))
+        // Two parts, then a scrap too short to send.
+        fakeRecording(opened, part(30), part(30), part(0.2))
 
         val activity = Robolectric.buildActivity(TranscribeActivity::class.java, shared()).setup().get()
         runService(nextService())
@@ -98,7 +98,7 @@ class TranscribeTest {
         reply("Part one.")
         // Both Gemini models are out of free requests.
         repeat(2) { server.enqueue(MockResponse().setResponseCode(429).setBody("""{"error":{"message":"quota"}}""")) }
-        fakeRecording(mutableListOf(), part(300), part(300))
+        fakeRecording(mutableListOf(), part(30), part(30))
 
         val activity = Robolectric.buildActivity(TranscribeActivity::class.java, shared()).setup().get()
         runService(nextService())
@@ -126,7 +126,7 @@ class TranscribeTest {
         Prefs(app).edit { putString("key_gemini", "AIza-test") }
         reply("Part one.")
         reply("Part two.")
-        fakeRecording(mutableListOf(), part(300), part(300), beforePart = { index -> if (index == 1) Transcription.cancel() })
+        fakeRecording(mutableListOf(), part(30), part(30), beforePart = { index -> if (index == 1) Transcription.cancel() })
 
         val activity = Robolectric.buildActivity(TranscribeActivity::class.java, shared()).setup().get()
         runService(nextService())
@@ -198,11 +198,14 @@ class TranscribeTest {
     /** Runs the main thread until [done] holds, for up to ten seconds. */
     private fun waitFor(done: () -> Boolean) {
         val deadline = System.currentTimeMillis() + 10_000
-        while (!done() && System.currentTimeMillis() < deadline) {
+        // Checked once per round: nextService's check takes the intent it finds.
+        var ok = done()
+        while (!ok && System.currentTimeMillis() < deadline) {
             Thread.sleep(20)
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100))
+            ok = done()
         }
-        assertTrue("timed out; state was ${Transcription.state.copy(text = Transcription.state.text.take(80))}", done())
+        assertTrue("timed out; state was ${Transcription.state.copy(text = Transcription.state.text.take(80))}", ok)
         shadowOf(Looper.getMainLooper()).idle()
     }
 
