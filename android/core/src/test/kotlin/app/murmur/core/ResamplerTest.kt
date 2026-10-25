@@ -1,7 +1,5 @@
 package app.murmur.core
 
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.sin
@@ -45,23 +43,25 @@ class ResamplerTest {
         assertTrue(abs(whole.size - 32_000) <= 1, "${whole.size} samples")
 
         val chunked = Resampler(44_100, 1)
+        val output = mutableListOf<Short>()
         var at = 0
         for (size in generateSequence(7) { it * 3 % 4096 + 1 }) {
             if (at >= input.size) break
             val end = minOf(at + size, input.size)
-            chunked.feed(input.copyOfRange(at, end))
+            output += chunked.feed(input.copyOfRange(at, end)).toList()
             at = end
         }
-        assertEquals(whole.toList(), shorts(chunked.finish()).toList())
+        output += chunked.finish().toList()
+        assertEquals(whole.toList(), output)
     }
 
     @Test
     fun `a sample split across chunks is not lost`() {
         val stereo = ShortArray(12) { 500 }
         val resampler = Resampler(48_000, 2)
-        resampler.feed(stereo.copyOfRange(0, 5)) // two frames and half of the third
-        resampler.feed(stereo.copyOfRange(4, 12))
-        assertEquals(List(2) { 500.toShort() }, shorts(resampler.finish()).toList())
+        val first = resampler.feed(stereo.copyOfRange(0, 5)) // two frames and half of the third
+        val second = resampler.feed(stereo.copyOfRange(4, 12))
+        assertEquals(List(2) { 500.toShort() }, (first + second + resampler.finish()).toList())
     }
 
     @Test
@@ -76,18 +76,8 @@ class ResamplerTest {
         assertTrue(rms(output) < 0.35 * rms(tone(14_000.0, 48_000, 1.0)))
     }
 
-    @Test
-    fun `reports how much audio it has`() {
-        val resampler = Resampler(48_000, 1)
-        resampler.feed(ShortArray(48_000 * 3))
-        assertEquals(3_000, resampler.durationMs)
-    }
-
     private fun resample(input: ShortArray, rate: Int, channels: Int) =
-        shorts(Resampler(rate, channels).apply { feed(input) }.finish())
-
-    private fun shorts(pcm: ByteArray) =
-        ShortArray(pcm.size / 2).also { ByteBuffer.wrap(pcm).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(it) }
+        Resampler(rate, channels).let { it.feed(input) + it.finish() }
 
     private fun tone(hz: Double, rate: Int, seconds: Double) =
         ShortArray((rate * seconds).toInt()) { (10_000 * sin(2 * PI * hz * it / rate)).toInt().toShort() }

@@ -1,28 +1,24 @@
 package app.murmur
 
+import android.Manifest
 import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.View
 import android.widget.Button
 import android.widget.TextView
-import app.murmur.core.Dictation
-import app.murmur.core.DictationException
-import app.murmur.core.Prompts
-import app.murmur.core.Wav
-import okhttp3.OkHttpClient
+import app.murmur.Transcription.Phase
 import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 
 /**
  * Transcribes a recording shared from another app, such as Voice Recorder or a
- * WhatsApp voice note, with the same settings as the mic.
+ * WhatsApp voice note, with the same settings as the mic. Long recordings go
+ * a few minutes at a time in [TranscribeService], so you can leave this screen.
  */
 class TranscribeActivity : Activity() {
     private lateinit var status: TextView
@@ -30,14 +26,17 @@ class TranscribeActivity : Activity() {
     private lateinit var progress: View
     private lateinit var copy: Button
     private lateinit var share: Button
-    private val main = Handler(Looper.getMainLooper())
+    private lateinit var stop: Button
+    private lateinit var resume: Button
     private val worker = Executors.newSingleThreadExecutor()
 
-    /** Settable so tests can point it at a fake server. */
-    internal var dictation: Dictation? = null
-
-    /** Settable so tests can skip decoding a real audio file. */
-    internal var decode: (Uri) -> AudioFile.Decoded = { AudioFile.decode(this, it, MAX_AUDIO_MS) }
+    /** A message about this screen rather than the transcription, such as a missing key. */
+    private var note: String? = null
+    private var copied: String? = null
+    private val listener: (Transcription.State) -> Unit = {
+        note = null
+        render(it)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,68 +46,127 @@ class TranscribeActivity : Activity() {
         progress = findViewById(R.id.transcribe_progress)
         copy = findViewById(R.id.transcribe_copy)
         share = findViewById(R.id.transcribe_share)
-        copy.setOnClickListener { copyToClipboard() }
+        stop = findViewById(R.id.transcribe_stop)
+        resume = findViewById(R.id.transcribe_resume)
+        copy.setOnClickListener { copyToClipboard(result.text.toString()) }
         share.setOnClickListener {
             val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, result.text.toString())
             startActivity(Intent.createChooser(send, null))
         }
-
-        val uri = sharedUri(intent)
-        val prefs = Prefs(this)
-        when {
-            uri == null -> showStatus(getString(R.string.transcribe_nothing))
-            prefs.key(prefs.provider).isBlank() -> showStatus(getString(R.string.transcribe_no_key))
-            else -> transcribe(uri, prefs)
+        stop.setOnClickListener { Transcription.cancel() }
+        resume.setOnClickListener {
+            Transcription.proceed()
+            startService(resume = true)
         }
+
+        Transcription.restore(this)
+        // What's already on screen was copied when it finished.
+        copied = Transcription.state.text.takeIf { Transcription.state.phase == Phase.DONE }
+        handle(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handle(intent)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        Transcription.listen(listener)
+        render(Transcription.state)
+    }
+
+    override fun onStop() {
+        Transcription.unlisten(listener)
+        super.onStop()
     }
 
     override fun onDestroy() {
-        worker.shutdownNow()
+        worker.shutdown()
         super.onDestroy()
     }
 
-    private fun transcribe(uri: Uri, prefs: Prefs) {
-        status.setText(R.string.transcribe_reading)
-        val settings = prefs.dictationSettings()
-        val dictation = dictation ?: Dictation(
-            Prompts.load(),
-            // A few minutes of audio takes longer than a dictation.
-            OkHttpClient.Builder().callTimeout(4, TimeUnit.MINUTES).build(),
-        )
+    private fun handle(intent: Intent) {
+        val uri = sharedUri(intent)
+        val prefs = Prefs(this)
+        note = when {
+            // Opened from the notification: show how it's going.
+            uri == null -> null
+            prefs.key(prefs.provider).isBlank() -> getString(R.string.transcribe_no_key)
+            Transcription.state.phase == Phase.WORKING -> getString(R.string.transcribe_busy)
+            else -> {
+                start(uri)
+                null
+            }
+        }
+        render(Transcription.state)
+    }
+
+    private fun start(uri: Uri) {
+        Transcription.begin()
+        copied = null
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), NOTIFICATIONS_REQUEST)
+        }
+        // Copy it first: the app that shared it may take back access when this screen closes.
         worker.execute {
             try {
-                val audio = decode(uri)
-                if (audio.pcm.size < Wav.SAMPLE_RATE) throw DictationException(Dictation.NO_SPEECH)
-                val seconds = audio.pcm.size / (2 * Wav.SAMPLE_RATE)
-                main.post { status.text = getString(R.string.transcribe_working, seconds / 60, seconds % 60) }
-                val outcome = dictation.run(Wav.encode(audio.pcm), settings)
-                val notes = listOfNotNull(outcome.note, getString(R.string.transcribe_trimmed).takeIf { audio.trimmed })
-                main.post { show(outcome.text, notes) }
+                val input = contentResolver.openInputStream(uri) ?: throw IllegalStateException("nothing to read")
+                input.use { Transcription.recording(this).outputStream().use { output -> it.copyTo(output) } }
+                runOnUiThread { startService(resume = false) }
             } catch (e: Exception) {
-                val message = (e as? DictationException)?.message ?: "Something went wrong (${e.message})."
-                main.post { showStatus(message) }
+                Transcription.fail("Couldn't open that file (${e.message}).")
             }
         }
     }
 
-    private fun show(text: String, notes: List<String>) {
-        result.text = text
-        copy.isEnabled = true
-        share.isEnabled = true
-        copyToClipboard()
-        showStatus((listOf(getString(R.string.transcribe_done)) + notes).joinToString(" "))
+    private fun startService(resume: Boolean) {
+        try {
+            startForegroundService(Intent(this, TranscribeService::class.java).putExtra(TranscribeService.EXTRA_RESUME, resume))
+        } catch (e: Exception) {
+            // Android only lets it start while Murmur is on screen.
+            Transcription.fail(getString(R.string.transcribe_not_started))
+        }
     }
 
-    private fun showStatus(message: String) {
-        progress.visibility = View.GONE
-        status.text = message
+    private fun render(state: Transcription.State) {
+        val working = state.phase == Phase.WORKING
+        result.text = state.text
+        progress.visibility = if (working) View.VISIBLE else View.GONE
+        copy.isEnabled = state.text.isNotBlank()
+        share.isEnabled = state.text.isNotBlank()
+        stop.visibility = if (working) View.VISIBLE else View.GONE
+        val canResume = state.phase == Phase.STOPPED && Transcription.recording(this).exists()
+        resume.visibility = if (canResume) View.VISIBLE else View.GONE
+        resume.setText(if (state.partsDone > 0) R.string.transcribe_continue else R.string.transcribe_retry)
+        if (state.phase == Phase.DONE && copied != state.text) {
+            copyToClipboard(state.text)
+            copied = state.text
+        }
+        status.text = note ?: when (state.phase) {
+            Phase.IDLE -> getString(R.string.transcribe_nothing)
+            Phase.WORKING -> when {
+                state.totalMs > 0 && state.doneMs > 0 -> getString(
+                    R.string.transcribe_working,
+                    Transcription.clock(state.doneMs),
+                    Transcription.clock(state.totalMs),
+                )
+                state.totalMs > 0 -> getString(R.string.transcribe_starting, Transcription.clock(state.totalMs))
+                else -> getString(R.string.transcribe_reading)
+            }
+            Phase.DONE -> getString(R.string.transcribe_done)
+            Phase.STOPPED -> listOfNotNull(state.message, getString(R.string.transcribe_so_far).takeIf { state.text.isNotBlank() })
+                .joinToString(" ")
+        }
     }
 
-    private fun copyToClipboard() {
-        (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("Murmur", result.text))
+    private fun copyToClipboard(text: String) {
+        (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("Murmur", text))
     }
 
     private fun sharedUri(intent: Intent): Uri? {
+        if (intent.action != Intent.ACTION_SEND) return null
         val stream = if (Build.VERSION.SDK_INT >= 33) {
             intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
         } else {
@@ -118,8 +176,7 @@ class TranscribeActivity : Activity() {
         return stream ?: intent.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.uri
     }
 
-    internal companion object {
-        // Gemini takes up to 20 MB per request: about 7 minutes of 16 kHz audio.
-        const val MAX_AUDIO_MS = 7 * 60 * 1000L
+    private companion object {
+        const val NOTIFICATIONS_REQUEST = 1
     }
 }

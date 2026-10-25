@@ -1,17 +1,16 @@
 package app.murmur.core
 
-import java.io.ByteArrayOutputStream
 import kotlin.math.roundToInt
 
 /**
- * Turns decoded audio of any sample rate and channel count into the 16 kHz mono
- * 16-bit PCM that [Wav.encode] wraps. It takes the audio a chunk at a time, so a
- * long recording never sits in memory at its original size.
+ * Turns decoded audio of any sample rate and channel count into 16 kHz mono
+ * samples, a chunk at a time, so a long recording never has to sit in memory.
  */
-class Resampler(inputRate: Int, private val channels: Int, private val outputRate: Int = Wav.SAMPLE_RATE) {
-    private val out = ByteArrayOutputStream()
+class Resampler(inputRate: Int, private val channels: Int, outputRate: Int = Wav.SAMPLE_RATE) {
     private val step = inputRate.toDouble() / outputRate
     private var frames = 0L
+    private var out = ShortArray(4096)
+    private var size = 0
 
     // Downsampling averages the input frames that fall in each output sample, so
     // pitches above the new limit are damped instead of folding down into noise.
@@ -27,28 +26,28 @@ class Resampler(inputRate: Int, private val channels: Int, private val outputRat
         require(inputRate > 0 && channels > 0) { "Bad audio format: $inputRate Hz, $channels channels" }
     }
 
-    val outputSamples get() = out.size() / 2
-    val durationMs get() = outputSamples * 1000L / outputRate
-
-    /** Adds interleaved samples; [size] counts samples, not frames. */
-    fun feed(samples: ShortArray, size: Int = samples.size) {
+    /** Takes interleaved samples ([length] counts samples, not frames) and returns the 16 kHz mono samples they make. */
+    fun feed(samples: ShortArray, length: Int = samples.size): ShortArray {
+        size = 0
         var i = 0
-        while (i + channels <= size) {
+        while (i + channels <= length) {
             var mixed = 0.0
             for (c in 0 until channels) mixed += samples[i + c]
             take(mixed / channels)
             i += channels
         }
+        return out.copyOf(size)
     }
 
-    /** The PCM so far, ready for [Wav.encode]. */
-    fun finish(): ByteArray {
+    /** Returns the last, partly filled sample, if there is one. */
+    fun finish(): ShortArray {
+        size = 0
         if (count > 0) {
             emit(sum / count)
             sum = 0.0
             count = 0
         }
-        return out.toByteArray()
+        return out.copyOf(size)
     }
 
     private fun take(value: Double) {
@@ -73,8 +72,7 @@ class Resampler(inputRate: Int, private val channels: Int, private val outputRat
     }
 
     private fun emit(value: Double) {
-        val sample = value.roundToInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
-        out.write(sample and 0xff)
-        out.write(sample shr 8 and 0xff)
+        if (size == out.size) out = out.copyOf(size * 2)
+        out[size++] = value.roundToInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
     }
 }

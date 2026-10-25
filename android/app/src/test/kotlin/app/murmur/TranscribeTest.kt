@@ -1,10 +1,13 @@
 package app.murmur
 
+import android.app.Notification
+import android.app.NotificationManager
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Looper
+import android.view.View
 import android.widget.Button
 import android.widget.TextView
 import app.murmur.core.Dictation
@@ -13,10 +16,14 @@ import app.murmur.core.Prompts
 import app.murmur.core.SttProvider
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import java.io.ByteArrayInputStream
+import java.io.File
 import java.time.Duration
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
@@ -24,10 +31,20 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 
-/** Sharing a recording to Murmur from another app. */
+/** Sharing a recording to Murmur from another app, short or long. */
 @RunWith(RobolectricTestRunner::class)
 class TranscribeTest {
     private val app get() = RuntimeEnvironment.getApplication()
+    private val server = MockWebServer()
+
+    @Before
+    fun fresh() = Transcription.reset()
+
+    @After
+    fun cleanUp() {
+        Transcription.reset()
+        server.shutdown()
+    }
 
     @Test
     fun `Murmur is offered when sharing recordings and voice notes`() {
@@ -41,65 +58,152 @@ class TranscribeTest {
     @Test
     fun `opened without a recording, it says how to use it`() {
         val activity = Robolectric.buildActivity(TranscribeActivity::class.java).setup().get()
-        assertEquals(app.getString(R.string.transcribe_nothing), activity.findViewById<TextView>(R.id.transcribe_status).text.toString())
+        assertEquals(app.getString(R.string.transcribe_nothing), status(activity))
     }
 
     @Test
     fun `without a key, it asks for one`() {
         val activity = Robolectric.buildActivity(TranscribeActivity::class.java, shared()).setup().get()
-        assertEquals(app.getString(R.string.transcribe_no_key), activity.findViewById<TextView>(R.id.transcribe_status).text.toString())
+        assertEquals(app.getString(R.string.transcribe_no_key), status(activity))
     }
 
     @Test
-    fun `a shared recording is transcribed, shown and copied`() {
+    fun `a long recording is written down part by part, in the background`() {
         Prefs(app).edit { putString("key_gemini", "AIza-test") }
-        val server = MockWebServer()
-        server.enqueue(MockResponse().setBody("""{"candidates":[{"content":{"parts":[{"text":"Acha suno, woh proposal abhi tak finalize nahi hua."}]}}]}"""))
-        val controller = Robolectric.buildActivity(TranscribeActivity::class.java, shared())
-        val activity = controller.get()
-        var decoded: Uri? = null
-        activity.decode = { decoded = it; AudioFile.Decoded(ByteArray(2 * 16_000 * 75), trimmed = true) }
-        activity.dictation = Dictation(Prompts.load(), baseUrls = SttProvider.entries.associateWith { server.url("/fake").toString() })
-        controller.setup()
+        reply("Acha suno, woh proposal abhi tak finalize nahi hua.")
+        reply("I'll follow up with Sarah tomorrow.")
+        val opened = mutableListOf<File>()
+        // Two five-minute parts, then a scrap too short to send.
+        fakeRecording(opened, part(300), part(300), part(0.2))
 
-        val status = activity.findViewById<TextView>(R.id.transcribe_status)
-        waitFor(status) { it.startsWith("Done") }
-        assertEquals(RECORDING, decoded)
-        assertTrue(status.text.toString(), status.text.contains("first 7 minutes"))
-        val text = "Acha suno, woh proposal abhi tak finalize nahi hua."
+        val activity = Robolectric.buildActivity(TranscribeActivity::class.java, shared()).setup().get()
+        runService(nextService())
+        waitFor { Transcription.state.phase == Transcription.Phase.DONE }
+
+        val text = "Acha suno, woh proposal abhi tak finalize nahi hua.\n\nI'll follow up with Sarah tomorrow."
         assertEquals(text, activity.findViewById<TextView>(R.id.transcribe_result).text.toString())
-        assertTrue(activity.findViewById<Button>(R.id.transcribe_copy).isEnabled)
-        val clipboard = app.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        assertEquals(text, clipboard.primaryClip!!.getItemAt(0).text.toString())
+        assertEquals(app.getString(R.string.transcribe_done), status(activity))
+        assertEquals(text, clipboard())
+        assertEquals(listOf(Transcription.recording(app)), opened)
+        assertFalse("the copy is deleted once done", Transcription.recording(app).exists())
+        assertEquals(2, server.requestCount)
+        assertTrue(server.takeRequest().body.readUtf8().contains("audio/wav"))
+        waitFor { notificationTitles().isNotEmpty() }
+        assertEquals(listOf(app.getString(R.string.transcript_ready)), notificationTitles())
+    }
 
-        val request = server.takeRequest()
-        assertTrue(request.path!!.endsWith("gemini-3.6-flash:generateContent"))
-        assertTrue(request.body.readUtf8().contains("audio/wav"))
-        server.shutdown()
+    @Test
+    fun `when the free quota runs out, Continue picks up where it stopped`() {
+        Prefs(app).edit { putString("key_gemini", "AIza-test") }
+        reply("Part one.")
+        // Both Gemini models are out of free requests.
+        repeat(2) { server.enqueue(MockResponse().setResponseCode(429).setBody("""{"error":{"message":"quota"}}""")) }
+        fakeRecording(mutableListOf(), part(300), part(300))
+
+        val activity = Robolectric.buildActivity(TranscribeActivity::class.java, shared()).setup().get()
+        runService(nextService())
+        waitFor { Transcription.state.phase == Transcription.Phase.STOPPED }
+        assertEquals("Part one.", activity.findViewById<TextView>(R.id.transcribe_result).text.toString())
+        assertTrue(status(activity), status(activity).contains("free requests"))
+        val resume = activity.findViewById<Button>(R.id.transcribe_resume)
+        assertEquals(View.VISIBLE, resume.visibility)
+        assertEquals(app.getString(R.string.transcribe_continue), resume.text.toString())
+        waitFor { notificationTitles().isNotEmpty() }
+        assertEquals(listOf(app.getString(R.string.transcription_stopped)), notificationTitles())
+
+        reply("Part two.")
+        resume.performClick()
+        val next = nextService()
+        assertTrue(next.getBooleanExtra(TranscribeService.EXTRA_RESUME, false))
+        runService(next)
+        waitFor { Transcription.state.phase == Transcription.Phase.DONE }
+        assertEquals("Part one.\n\nPart two.", activity.findViewById<TextView>(R.id.transcribe_result).text.toString())
+        assertEquals(4, server.requestCount) // part one wasn't sent again
+    }
+
+    @Test
+    fun `Stop keeps what's done so far`() {
+        Prefs(app).edit { putString("key_gemini", "AIza-test") }
+        reply("Part one.")
+        reply("Part two.")
+        fakeRecording(mutableListOf(), part(300), part(300), beforePart = { index -> if (index == 1) Transcription.cancel() })
+
+        val activity = Robolectric.buildActivity(TranscribeActivity::class.java, shared()).setup().get()
+        runService(nextService())
+        waitFor { Transcription.state.phase == Transcription.Phase.STOPPED }
+        assertEquals("Part one.", activity.findViewById<TextView>(R.id.transcribe_result).text.toString())
+        assertTrue(status(activity), status(activity).startsWith("Stopped."))
     }
 
     @Test
     fun `a file it can't read gets a clear message`() {
         Prefs(app).edit { putString("key_gemini", "AIza-test") }
-        val controller = Robolectric.buildActivity(TranscribeActivity::class.java, shared())
-        controller.get().decode = { throw DictationException("That file has no audio in it.") }
-        val activity = controller.setup().get()
+        Transcription.open = { _, _ -> throw DictationException("That file has no audio in it.") }
+        shadowOf(app.contentResolver).registerInputStream(RECORDING, ByteArrayInputStream(ByteArray(10)))
 
-        val status = activity.findViewById<TextView>(R.id.transcribe_status)
-        waitFor(status) { it == "That file has no audio in it." }
+        val activity = Robolectric.buildActivity(TranscribeActivity::class.java, shared()).setup().get()
+        runService(nextService())
+        waitFor { status(activity).startsWith("That file has no audio in it.") }
         assertFalse(activity.findViewById<Button>(R.id.transcribe_copy).isEnabled)
+    }
+
+    private fun reply(text: String) {
+        server.enqueue(MockResponse().setBody("""{"candidates":[{"content":{"parts":[{"text":"$text"}]}}]}"""))
+    }
+
+    private fun part(seconds: Double) = ByteArray((seconds * 2 * 16_000).toInt())
+
+    private fun part(seconds: Int) = part(seconds.toDouble())
+
+    /** Shares a fake recording made of [pieces], and points Murmur at the fake server. */
+    private fun fakeRecording(opened: MutableList<File>, vararg pieces: ByteArray, beforePart: (Int) -> Unit = {}) {
+        shadowOf(app.contentResolver).registerInputStream(RECORDING, ByteArrayInputStream("m4a bytes".toByteArray()))
+        Transcription.dictation = Dictation(Prompts.load(), baseUrls = SttProvider.entries.associateWith { server.url("/fake").toString() })
+        Transcription.open = { _, file ->
+            opened += file
+            assertEquals("m4a bytes", file.readText())
+            object : Transcription.Source {
+                override val durationMs = pieces.sumOf { it.size } / 32L
+                override fun parts(onPart: (ByteArray) -> Unit) = pieces.forEachIndexed { index, part ->
+                    beforePart(index)
+                    onPart(part)
+                }
+            }
+        }
     }
 
     private fun shared() = Intent(Intent.ACTION_SEND).setType("audio/mp4").putExtra(Intent.EXTRA_STREAM, RECORDING)
 
-    /** Runs the main thread until [done] holds for the status text, for up to ten seconds. */
-    private fun waitFor(status: TextView, done: (String) -> Boolean) {
+    private fun status(activity: TranscribeActivity) = activity.findViewById<TextView>(R.id.transcribe_status).text.toString()
+
+    private fun clipboard() =
+        (app.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).primaryClip!!.getItemAt(0).text.toString()
+
+    private fun notificationTitles() =
+        shadowOf(app.getSystemService(NotificationManager::class.java)).allNotifications
+            .map { it.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() }
+            .filter { it != app.getString(R.string.transcribing_title) }
+
+    /** Waits for the copy to finish and the screen to start the service. */
+    private fun nextService(): Intent {
+        var intent: Intent? = null
+        waitFor { shadowOf(app).nextStartedService?.also { intent = it } != null }
+        return intent!!
+    }
+
+    private fun runService(intent: Intent) {
+        Robolectric.buildService(TranscribeService::class.java, intent).create().startCommand(0, 1)
+    }
+
+    /** Runs the main thread until [done] holds, for up to ten seconds. */
+    private fun waitFor(done: () -> Boolean) {
         val deadline = System.currentTimeMillis() + 10_000
-        while (!done(status.text.toString()) && System.currentTimeMillis() < deadline) {
-            Thread.sleep(50)
+        while (!done() && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20)
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100))
         }
-        assertTrue("status was: ${status.text}", done(status.text.toString()))
+        assertTrue("timed out; state was ${Transcription.state.copy(text = Transcription.state.text.take(80))}", done())
+        shadowOf(Looper.getMainLooper()).idle()
     }
 
     private companion object {

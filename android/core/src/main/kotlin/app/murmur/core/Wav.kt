@@ -26,4 +26,11 @@ object Wav {
         }
         return header.array() + pcm
     }
+
+    /** Little-endian 16-bit PCM from samples, for [encode]. */
+    fun pcm(samples: ShortArray, from: Int = 0, to: Int = samples.size): ByteArray {
+        val bytes = ByteBuffer.allocate((to - from) * 2).order(ByteOrder.LITTLE_ENDIAN)
+        bytes.asShortBuffer().put(samples, from, to - from)
+        return bytes.array()
+    }
 }

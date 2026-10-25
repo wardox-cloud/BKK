@@ -24,4 +24,10 @@ class WavTest {
         assertEquals(pcm.size, header.getInt(40))
         assertEquals(pcm.toList(), wav.copyOfRange(44, wav.size).toList())
     }
+
+    @Test
+    fun `turns samples into little-endian pcm`() {
+        val pcm = Wav.pcm(shortArrayOf(1, -2, 0x1234, Short.MIN_VALUE), 1, 4)
+        assertEquals(listOf<Byte>(-2, -1, 0x34, 0x12, 0, -128), pcm.toList())
+    }
 }

@@ -8,28 +8,25 @@ import android.media.MediaFormat
 import android.net.Uri
 import app.murmur.core.DictationException
 import app.murmur.core.Resampler
+import app.murmur.core.Splitter
 import java.nio.ByteOrder
 
-/** Decodes any recording the phone can play (m4a, mp3, ogg, opus, wav...) into 16 kHz mono PCM. */
-object AudioFile {
-    class Decoded(val pcm: ByteArray, val trimmed: Boolean)
-
-    private const val TIMEOUT_US = 10_000L
-
-    /** Stops after [maxMs] of audio and says so in [Decoded.trimmed]. */
-    fun decode(context: Context, uri: Uri, maxMs: Long): Decoded {
+/** A recording the phone can play (m4a, mp3, ogg, opus, wav...), decoded a few minutes at a time. */
+class AudioFile(private val context: Context, private val uri: Uri) : Transcription.Source {
+    override val durationMs: Long by lazy {
         val extractor = MediaExtractor()
         try {
-            try {
-                extractor.setDataSource(context, uri, null)
-            } catch (e: Exception) {
-                throw DictationException("Couldn't open that file (${e.message}).")
-            }
-            val track = (0 until extractor.trackCount).firstOrNull {
-                extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME).orEmpty().startsWith("audio/")
-            } ?: throw DictationException("That file has no audio in it.")
-            extractor.selectTrack(track)
-            val format = extractor.getTrackFormat(track)
+            val format = open(extractor)
+            if (format.containsKey(MediaFormat.KEY_DURATION)) format.getLong(MediaFormat.KEY_DURATION) / 1000 else 0
+        } finally {
+            extractor.release()
+        }
+    }
+
+    override fun parts(onPart: (ByteArray) -> Unit) {
+        val extractor = MediaExtractor()
+        try {
+            val format = open(extractor)
             val codec = try {
                 MediaCodec.createDecoderByType(format.getString(MediaFormat.KEY_MIME)!!)
             } catch (e: Exception) {
@@ -38,7 +35,7 @@ object AudioFile {
             try {
                 codec.configure(format, null, null, 0)
                 codec.start()
-                return drain(extractor, codec, format, maxMs)
+                drain(extractor, codec, format, onPart)
             } finally {
                 codec.release()
             }
@@ -47,9 +44,24 @@ object AudioFile {
         }
     }
 
-    private fun drain(extractor: MediaExtractor, codec: MediaCodec, inputFormat: MediaFormat, maxMs: Long): Decoded {
+    /** Opens the file and selects its audio track. */
+    private fun open(extractor: MediaExtractor): MediaFormat {
+        try {
+            extractor.setDataSource(context, uri, null)
+        } catch (e: Exception) {
+            throw DictationException("Couldn't open that file (${e.message}).")
+        }
+        val track = (0 until extractor.trackCount).firstOrNull {
+            extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME).orEmpty().startsWith("audio/")
+        } ?: throw DictationException("That file has no audio in it.")
+        extractor.selectTrack(track)
+        return extractor.getTrackFormat(track)
+    }
+
+    private fun drain(extractor: MediaExtractor, codec: MediaCodec, inputFormat: MediaFormat, onPart: (ByteArray) -> Unit) {
         var format = inputFormat
         var resampler: Resampler? = null
+        val splitter = Splitter()
         val info = MediaCodec.BufferInfo()
         var inputDone = false
         var waits = 0
@@ -70,7 +82,7 @@ object AudioFile {
             val index = codec.dequeueOutputBuffer(info, TIMEOUT_US)
             if (index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) format = codec.outputFormat
             if (index < 0) {
-                // A decoder that never signals the end shouldn't hang the screen.
+                // A decoder that never signals the end shouldn't hang the transcription.
                 if (inputDone && ++waits > 300) break
                 continue
             }
@@ -89,14 +101,18 @@ object AudioFile {
             val current = resampler
                 ?: Resampler(format.getInteger(MediaFormat.KEY_SAMPLE_RATE), format.getInteger(MediaFormat.KEY_CHANNEL_COUNT))
                     .also { resampler = it }
-            current.feed(samples)
-            if (current.durationMs >= maxMs) return Decoded(current.finish(), trimmed = true)
+            splitter.add(current.feed(samples)).forEach(onPart)
             if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) break
         }
-        return Decoded(resampler?.finish() ?: ByteArray(0), trimmed = false)
+        resampler?.let { splitter.add(it.finish()).forEach(onPart) }
+        splitter.finish()?.let(onPart)
     }
 
     private fun isFloat(format: MediaFormat) =
         format.containsKey(MediaFormat.KEY_PCM_ENCODING) &&
             format.getInteger(MediaFormat.KEY_PCM_ENCODING) == AudioFormat.ENCODING_PCM_FLOAT
+
+    private companion object {
+        const val TIMEOUT_US = 10_000L
+    }
 }

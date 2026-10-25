@@ -64,7 +64,9 @@ New builds install over the old one and keep your settings.
 
 ### Transcribe a recording
 
-Share any recording to Murmur, such as a Voice Recorder file or a WhatsApp voice note: tap **Share** and choose **Transcribe with Murmur**. It writes it down with your usual settings, shows it, and copies it. It handles the first 7 minutes of a recording.
+Share any recording to Murmur, such as a Voice Recorder file or a WhatsApp voice note: tap **Share** and choose **Transcribe with Murmur**. It writes it down with your usual settings, shows it, and copies it.
+
+Recordings of any length work. Murmur splits long ones into parts of 4 to 6 minutes, cutting each in a pause, and transcribes them one after another. You can leave the screen: a notification shows the progress and tells you when it's done. Each part is one Gemini request, so an hour-long meeting uses about 12 of your free daily requests. If they run out partway, Murmur keeps what's done, and **Continue** picks up from there later.
 
 ### The keyboard (optional)
 
@@ -120,7 +122,7 @@ Open it, add your keys, tap the mic, talk, tap again. It says **Copied**, and yo
 - **A name keeps coming out wrong:** add it to the personal dictionary.
 - **Android won't install an update:** the new APK must be signed with the same key as the installed one. Builds from this repository's releases always are.
 - **Web app, "Couldn't reach OpenAI/Groq":** when deployed on Vercel, Murmur retries through `api/transcribe.js`, a relay that only passes the request along. It handles about 5 minutes of audio.
-- Dictations stop automatically at 6 minutes.
+- Dictations with the mic stop automatically at 6 minutes. For anything longer, record it (in Voice Recorder, say) and share the recording to Murmur.
 
 ## Speech test
 
@@ -148,8 +150,8 @@ cd android && ./gradlew :core:test :app:assembleDebug   # keyboard (needs the An
 |---|---|
 | `shared/prompts.json` | Every prompt: transcription instructions, cleanup rules, languages, styles. Edit wording here. |
 | `src/` | Web app. `prompts.js` builds prompts, `transcribe.js` and `gemini.js` do speech to text, `polish.js` does cleanup. |
-| `android/core/` | The keyboard's logic in plain Kotlin: prompts, audio (WAV, resampling), Gemini/OpenAI/Groq, Claude. Its tests check its prompts match the web app's exactly. |
-| `android/app/` | The floating mic (`BubbleService.kt`, with `MicPanelActivity.kt` as its fallback), the keyboard (`MurmurKeyboard.kt`), the setup screen (`SetupActivity.kt`) and the screen for shared recordings (`TranscribeActivity.kt`). |
+| `android/core/` | The keyboard's logic in plain Kotlin: prompts, audio (WAV, resampling, splitting long recordings at pauses), Gemini/OpenAI/Groq, Claude. Its tests check its prompts match the web app's exactly. |
+| `android/app/` | The floating mic (`BubbleService.kt`, with `MicPanelActivity.kt` as its fallback), the keyboard (`MurmurKeyboard.kt`), the setup screen (`SetupActivity.kt`), and shared recordings (`TranscribeActivity.kt`, run in the background by `TranscribeService.kt`). |
 | `eval/` | The speech test, and the phone benchmark (`phone_benchmark.md`, `phone_score.py`). |
 | `.github/workflows/` | `android.yml` builds and publishes the APK on every change; `speech-eval.yml` runs the speech test. |
 
