@@ -2,9 +2,9 @@ package app.murmur
 
 import android.Manifest
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Bundle
 
 /**
  * Starts or stops a meeting recording without showing anything, for the
@@ -12,8 +12,9 @@ import android.os.Bundle
  * start the microphone from something on screen, which this briefly is.
  */
 class RecordActivity : Activity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+    // onResume rather than onCreate: by then Android counts the app as on screen.
+    override fun onResume() {
+        super.onResume()
         when {
             Meetings.recording != null -> MeetingService.stop(this)
             checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED ->
@@ -25,7 +26,7 @@ class RecordActivity : Activity() {
     }
 
     companion object {
-        fun intent(activity: android.content.Context) =
-            Intent(activity, RecordActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+        fun intent(context: Context) =
+            Intent(context, RecordActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
     }
 }

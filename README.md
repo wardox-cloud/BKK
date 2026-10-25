@@ -1,16 +1,17 @@
 # Murmur
 
-A personal, free, Wispr Flow-style voice tool for your phone. Tap the floating mic in any app and talk the way you normally do: English, Urdu, or both in the same sentence. Murmur writes it down cleanly (no "um"s or false starts, real punctuation, your "no wait, I mean..." corrections applied) and types it into the box you're in.
+A personal, free, Wispr Flow-style voice tool for your phone. Tap the floating mic in any app and talk the way you normally do: English, Urdu, or both in the same sentence. Murmur writes it down cleanly (no "um"s or false starts, real punctuation, your "no wait, I mean..." corrections applied) and types it into the box you're in. It also records in-person meetings and turns them into a transcript with speakers and notes.
 
-It costs nothing to run: one free Gemini key from Google does the listening and the cleanup. There's no Murmur server, and your key stays on your phone.
+It costs nothing to run: one free Gemini key from Google does the listening, the cleanup and the notes. There's no Murmur server, and your key, recordings and notes stay on your phone.
 
-It comes in three forms:
+It comes in these forms:
 
 - **Floating mic** (Android, `android/`): a small mic button over every app while you type. Tap, talk, tap: the text goes straight into the text box.
-- **Murmur keyboard** (Android): the same thing as a keyboard you switch to, for people who'd rather not turn on the floating mic.
-- **Web app** (`src/`): works on iPhone and Android from the home screen. It copies the text, and you paste it.
+- **Meetings** (Android): tap Record and put the phone on the table. It keeps listening with the screen off and writes the meeting down as it goes, with notes ready about a minute after you stop.
+- **Murmur keyboard** (Android): the floating mic as a keyboard you switch to, for people who'd rather not turn on the floating mic.
+- **Web app** (`src/`): dictation on iPhone and Android from the home screen. It copies the text, and you paste it.
 
-All three use the same prompts (`shared/prompts.json`).
+All of them use the same prompts (`shared/prompts.json`).
 
 ## How it works
 
@@ -39,15 +40,17 @@ Why Gemini is the default for transcription: in the [UrduSpeech study (2026)](ht
 
 ### Styles
 
-*Clean* (your words, tidied up), *Message* (casual text), *Email* (paragraphs), *Notes* (bullet points), *Raw* (no cleanup). Pick one in the Murmur app (or on the keyboard, where tapping a style right after a dictation rewrites that dictation in place).
+*Clean* (your words, tidied up), *Message* (casual text), *Email* (paragraphs), *Notes* (bullet points), *Raw* (no cleanup), plus any you write yourself in settings, one per line ("LinkedIn: Write it as a LinkedIn post, warm and professional").
 
-## Android: floating mic and keyboard
+On Android each app gets its own style: Message in chat apps such as WhatsApp, Email in mail apps, Notes in notes apps, and Clean elsewhere, until you pick something else there. **Hold** the floating mic to pick the style for the app you're in, or tap a style on the keyboard; Murmur remembers it for that app. On the keyboard, tapping a style right after a dictation also rewrites that dictation in place.
+
+## Android
 
 ### Install
 
 1. On your phone, open **[the latest release](https://github.com/wardox-cloud/BKK/releases/latest)** and tap **murmur-keyboard.apk**.
 2. Android asks whether your browser may install apps. Allow it for this one install. The app isn't in the Play Store, so Android calls it an "unknown app".
-3. Open **Murmur** from your app drawer and follow the steps on screen:
+3. Open **Murmur** from your app drawer, tap **Settings** and follow the steps:
    1. **Allow the microphone.**
    2. **Add your free Gemini key** (the button opens [aistudio.google.com/apikey](https://aistudio.google.com/apikey)) and tap **Save**.
    3. **Turn on the floating mic:** tap **Open Accessibility**, choose **Murmur mic bubble** and turn it on. If Android says it's a *restricted setting* (Android 13 and newer do this for apps not installed from the Play Store), tap **App info** in Murmur, then **⋮** in the top corner, then **Allow restricted settings**, and try again.
@@ -60,17 +63,27 @@ New builds install over the old one and keep your settings.
 - When you're typing in any app, the mic bubble appears at the edge of the screen. Drag it anywhere; it remembers where you put it. (In settings you can keep it on screen all the time.)
 - **Tap** the bubble, talk, **tap** again. A moment later your words are typed at the cursor, with a space added if needed. If no text box is selected, they're copied so you can paste them.
 - On some phones Android won't let a bubble use the microphone. Murmur notices the first time and opens a small *Listening…* panel at the bottom instead, and keeps using it from then on. Tap its button (or the bubble) when you're done.
+- **Select text first** and talk to rewrite it: "make this shorter", "translate it to English", "make it more polite", "turn it into bullet points".
+- With no internet, the phone's own recognizer writes plain English dictation instead (Android 13 and newer; turn it off in settings).
+- Everything you dictate is kept in **Dictation history** on the home screen: search it, tap to copy again, hold to delete.
 - If something fails, a message says why.
 
-### Transcribe a recording
+### Meetings
 
-Share any recording to Murmur, such as a Voice Recorder file or a WhatsApp voice note: tap **Share** and choose **Transcribe with Murmur**. It writes it down with your usual settings, shows it, and copies it.
+1. Tap **Record** on Murmur's home screen. You can also add the **Record meeting** tile to Quick Settings (pull down twice, tap the pencil) or the Murmur widget to your home screen, for one tap from anywhere.
+2. Put the phone on the table and lock it if you like. A notification shows the time and has **Pause** and **Stop**.
+3. Every 4 to 6 minutes of audio, cut at a pause, is written down while you're still talking, with who said what ("Ali:", or "Speaker 1:" until a name comes up). Urdu is written your way, as for dictation.
+4. About a minute after you stop, a notification says the notes are ready: a title, a summary, key points, decisions and action items.
 
-Recordings of any length work. Murmur splits long ones into parts of 4 to 6 minutes, cutting each in a pause, and transcribes them one after another. You can leave the screen: a notification shows the progress and tells you when it's done. Each part is one Gemini request, so an hour-long meeting uses about 12 of your free daily requests. If they run out partway, Murmur keeps what's done, and **Continue** picks up from there later.
+The home screen lists your meetings, newest first, and **searches** their titles, transcripts and notes. Each meeting has its notes and transcript (both selectable), **Play** for the recording, **Copy**, **Share**, **Open in Claude** (hands the transcript to the Claude app, where your subscription covers a deeper look), **Rename** and **Delete**.
+
+The recording stays on the phone (about 15 MB an hour) and plays even if the phone died mid-meeting. If the free requests run out or there's no internet, Murmur keeps recording and keeps what's done; **Continue** finishes it later. If Android closes Murmur partway, everything recorded so far is kept and **Continue** finishes that too.
+
+You can also **share a recording** to Murmur, such as a Voice Recorder file or a WhatsApp voice note (**Share → Transcribe with Murmur**): it becomes a meeting the same way, of any length.
 
 ### The keyboard (optional)
 
-If you'd rather not turn on the floating mic, Murmur also works as a keyboard. Turn it on from the bottom of the Murmur app, then switch to it with the keyboard button at the bottom of your screen or the globe key. Tap the mic (or hold it while you talk). Tapping a style right after a dictation rewrites it in place. **Undo** removes the last dictation.
+If you'd rather not turn on the floating mic, Murmur also works as a keyboard. Turn it on from the bottom of Murmur's settings, then switch to it with the keyboard button at the bottom of your screen or the globe key. Tap the mic (or hold it while you talk); select text first to rewrite it by voice. Tapping a style right after a dictation rewrites it in place. **Undo** removes the last dictation.
 
 ### Why it needs Accessibility
 
@@ -78,7 +91,7 @@ Android only lets an app draw a button over other apps and type into their text 
 
 ## Keys
 
-**You need one key, and it's free:** a Gemini key from [aistudio.google.com/apikey](https://aistudio.google.com/apikey). Any Google account works; you don't need a paid plan. Murmur uses Gemini for both steps, listening and cleanup, in a single request.
+**You need one key, and it's free:** a Gemini key from [aistudio.google.com/apikey](https://aistudio.google.com/apikey). Any Google account works; you don't need a paid plan. Murmur uses Gemini for dictation (listening and cleanup in a single request), meetings and notes.
 
 | Optional extras | Where | Notes |
 |---|---|---|
@@ -88,9 +101,9 @@ Android only lets an app draw a button over other apps and type into their text 
 
 ## What it costs
 
-**Nothing, with the default setup.** Gemini's free tier covers personal dictation, with two catches:
+**Nothing, with the default setup.** Gemini's free tier covers personal dictation and meetings, with two catches:
 
-- **Daily limits.** Google gives each Gemini model its own allowance of free requests per day and per minute, and changes the numbers from time to time (reports range from about 20 a day to 1,500 for the newest Flash models, and about 500 for Flash-Lite). One dictation is one request; a long recording is one request per 4 to 6 minutes. When a model's free requests run out, Murmur moves to the next Flash model your key can use (newer before older, then Flash-Lite), and remembers, so later dictations go straight there. The Murmur app's setup screen shows which models are used up and when they come back: midnight in California, which is noon or 1 pm in Pakistan. To see your exact limits, open [Google AI Studio](https://aistudio.google.com) with the account your key belongs to and look at its usage and rate limits.
+- **Daily limits.** Google gives each Gemini model its own allowance of free requests per day and per minute, and changes the numbers from time to time (reports range from about 20 a day to 1,500 for the newest Flash models, and about 500 for Flash-Lite). One dictation is one request; a meeting is one request per 4 to 6 minutes plus one for the notes, so about 13 for an hour. Murmur's settings show how many requests Gemini answered today. When a model's free requests run out, Murmur moves to the next Flash model your key can use (newer before older, then Flash-Lite), and remembers, so later dictations go straight there. The Murmur app's setup screen shows which models are used up and when they come back: midnight in California, which is noon or 1 pm in Pakistan. To see your exact limits, open [Google AI Studio](https://aistudio.google.com) with the account your key belongs to and look at its usage and rate limits.
 - **Privacy.** On the free tier, Google may use what you send to improve its products. If you'd rather it didn't, add billing to your Google AI Studio project; then you pay per use, roughly 0.2¢ per 30-second dictation (about $1.50 a month at 30 dictations a day).
 
 Claude cleanup, if you add it, is extra: about $0.20 a month with Claude Haiku 5.5, or about $7.50 with Claude Opus 5.5, at 30 dictations a day.
@@ -122,7 +135,7 @@ Open it, add your keys, tap the mic, talk, tap again. It says **Copied**, and yo
 - **A name keeps coming out wrong:** add it to the personal dictionary.
 - **Android won't install an update:** the new APK must be signed with the same key as the installed one. Builds from this repository's releases always are.
 - **Web app, "Couldn't reach OpenAI/Groq":** when deployed on Vercel, Murmur retries through `api/transcribe.js`, a relay that only passes the request along. It handles about 5 minutes of audio.
-- Dictations with the mic stop automatically at 6 minutes. For anything longer, record it (in Voice Recorder, say) and share the recording to Murmur.
+- Dictations with the mic stop automatically at 6 minutes. For anything longer, use **Record** on the home screen, which has no limit.
 
 ## Speech test
 
@@ -150,8 +163,8 @@ cd android && ./gradlew :core:test :app:assembleDebug   # keyboard (needs the An
 |---|---|
 | `shared/prompts.json` | Every prompt: transcription instructions, cleanup rules, languages, styles. Edit wording here. |
 | `src/` | Web app. `prompts.js` builds prompts, `transcribe.js` and `gemini.js` do speech to text, `polish.js` does cleanup. |
-| `android/core/` | The keyboard's logic in plain Kotlin: prompts, audio (WAV, resampling, splitting long recordings at pauses), Gemini/OpenAI/Groq, Claude. Its tests check its prompts match the web app's exactly. |
-| `android/app/` | The floating mic (`BubbleService.kt`, with `MicPanelActivity.kt` as its fallback), the keyboard (`MurmurKeyboard.kt`), the setup screen (`SetupActivity.kt`), and shared recordings (`TranscribeActivity.kt`, run in the background by `TranscribeService.kt`). |
+| `android/core/` | The app's logic in plain Kotlin: prompts, audio (WAV, resampling, splitting long recordings at pauses, AAC framing), Gemini (with the free-tier model switching) and OpenAI/Groq/Claude, meetings (`MeetingStore`, `MeetingPipeline`), styles and history. Its tests check its prompts match the web app's exactly. |
+| `android/app/` | The home screen (`MainActivity.kt`), meetings (`MeetingService.kt` records and writes them down; `MeetingActivity.kt`, `MeetingTile.kt`, `MeetingWidget.kt`), the floating mic (`BubbleService.kt`, with `MicPanelActivity.kt` as its fallback), the keyboard (`MurmurKeyboard.kt`), settings (`SetupActivity.kt`), dictation history, and shared recordings (`TranscribeActivity.kt`). |
 | `eval/` | The speech test, and the phone benchmark (`phone_benchmark.md`, `phone_score.py`). |
 | `.github/workflows/` | `android.yml` builds and publishes the APK on every change; `speech-eval.yml` runs the speech test. |
 
@@ -159,7 +172,6 @@ cd android && ./gradlew :core:test :app:assembleDebug   # keyboard (needs the An
 
 ## Ideas for later
 
-- Fully offline mode: run Whisper on the phone itself for English-only dictation without internet (mixed Urdu-English needs Gemini; see the speech test).
-- Voice commands on selected text: "make this shorter", "translate to English".
-- Per-app styles, such as Email in Gmail and Message in WhatsApp.
+- Ask questions about past meetings ("what did Ali say about pricing?").
+- Fully offline meetings: run Whisper on the phone itself (good for English; mixed Urdu-English needs Gemini, see the speech test).
 - iPhone: needs a Mac and Xcode, and iOS keyboards can't use the microphone, so it would hand off to the app like Wispr Flow does.
